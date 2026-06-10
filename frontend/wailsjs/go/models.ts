@@ -174,6 +174,70 @@ export namespace service {
 		    return a;
 		}
 	}
+	export class IncomingEvent {
+	    CalendarID: number;
+	    GoogleEventID: string;
+	    InstanceID: string;
+	    RecurringEventID: string;
+	    ICalUID: string;
+	    Title: string;
+	    Description: string;
+	    Location: string;
+	    Organizer: string;
+	    Attendees: Attendee[];
+	    Status: string;
+	    AllDay: boolean;
+	    // Go type: time
+	    Start?: any;
+	    // Go type: time
+	    End?: any;
+	    StartDate: string;
+	    EndDate: string;
+	    OriginalTz: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new IncomingEvent(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.CalendarID = source["CalendarID"];
+	        this.GoogleEventID = source["GoogleEventID"];
+	        this.InstanceID = source["InstanceID"];
+	        this.RecurringEventID = source["RecurringEventID"];
+	        this.ICalUID = source["ICalUID"];
+	        this.Title = source["Title"];
+	        this.Description = source["Description"];
+	        this.Location = source["Location"];
+	        this.Organizer = source["Organizer"];
+	        this.Attendees = this.convertValues(source["Attendees"], Attendee);
+	        this.Status = source["Status"];
+	        this.AllDay = source["AllDay"];
+	        this.Start = this.convertValues(source["Start"], null);
+	        this.End = this.convertValues(source["End"], null);
+	        this.StartDate = source["StartDate"];
+	        this.EndDate = source["EndDate"];
+	        this.OriginalTz = source["OriginalTz"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 	export class Period {
 	    id: number;
 	    startDate: string;
@@ -216,6 +280,48 @@ export namespace service {
 		    }
 		    return a;
 		}
+	}
+	export class ReviewItem {
+	    id: number;
+	    periodId: number;
+	    kind: string;
+	    eventId?: number;
+	    payload: string;
+	    status: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new ReviewItem(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.periodId = source["periodId"];
+	        this.kind = source["kind"];
+	        this.eventId = source["eventId"];
+	        this.payload = source["payload"];
+	        this.status = source["status"];
+	    }
+	}
+	export class SyncResult {
+	    added: number;
+	    updated: number;
+	    unchanged: number;
+	    removed: number;
+	    flagged: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new SyncResult(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.added = source["added"];
+	        this.updated = source["updated"];
+	        this.unchanged = source["unchanged"];
+	        this.removed = source["removed"];
+	        this.flagged = source["flagged"];
+	    }
 	}
 	export class TzSegment {
 	    id: number;

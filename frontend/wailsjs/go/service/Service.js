@@ -38,6 +38,10 @@ export function ListGapFills(arg1, arg2) {
   return window['go']['service']['Service']['ListGapFills'](arg1, arg2);
 }
 
+export function ListOpenReviewItems(arg1, arg2) {
+  return window['go']['service']['Service']['ListOpenReviewItems'](arg1, arg2);
+}
+
 export function ListPeriods(arg1) {
   return window['go']['service']['Service']['ListPeriods'](arg1);
 }
@@ -48,4 +52,8 @@ export function ListSelectedCalendars(arg1) {
 
 export function ListTzSegments(arg1, arg2) {
   return window['go']['service']['Service']['ListTzSegments'](arg1, arg2);
+}
+
+export function SyncEvents(arg1, arg2, arg3) {
+  return window['go']['service']['Service']['SyncEvents'](arg1, arg2, arg3);
 }

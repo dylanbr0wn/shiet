@@ -83,6 +83,16 @@ type Event struct {
 	Active           bool       `json:"active"`
 }
 
+// ReviewItem is a sync/dedup conflict awaiting explicit user resolution.
+type ReviewItem struct {
+	ID       int64  `json:"id"`
+	PeriodID int64  `json:"periodId"`
+	Kind     string `json:"kind"`
+	EventID  *int64 `json:"eventId,omitempty"`
+	Payload  string `json:"payload"` // raw JSON context
+	Status   string `json:"status"`
+}
+
 // GapFill is a user entry covering an uncovered interval / manual block.
 type GapFill struct {
 	ID         int64     `json:"id"`
@@ -150,6 +160,17 @@ func toEvent(r sqlc.Event) Event {
 		EndDate:          r.EndDate.String,
 		OriginalTz:       r.OriginalTz,
 		Active:           r.Active != 0,
+	}
+}
+
+func toReviewItem(r sqlc.ReviewItem) ReviewItem {
+	return ReviewItem{
+		ID:       r.ID,
+		PeriodID: r.PeriodID,
+		Kind:     r.Kind,
+		EventID:  nullInt64Ptr(r.EventID),
+		Payload:  r.Payload,
+		Status:   r.Status,
 	}
 }
 

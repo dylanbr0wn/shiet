@@ -170,6 +170,21 @@ func (s *Service) ListGapFills(ctx context.Context, periodID int64) ([]GapFill, 
 	return out, nil
 }
 
+// ── review queue ──────────────────────────────────────────────────────
+
+// ListOpenReviewItems returns the unresolved review-queue items for a period.
+func (s *Service) ListOpenReviewItems(ctx context.Context, periodID int64) ([]ReviewItem, error) {
+	rows, err := s.q.ListOpenReviewItems(ctx, periodID)
+	if err != nil {
+		return nil, mapErr("list review items", err)
+	}
+	out := make([]ReviewItem, len(rows))
+	for i, r := range rows {
+		out[i] = toReviewItem(r)
+	}
+	return out, nil
+}
+
 // ── settings ──────────────────────────────────────────────────────────
 
 // GetSetting returns the raw JSON-encoded value for a setting key.

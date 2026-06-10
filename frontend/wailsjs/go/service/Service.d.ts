@@ -21,8 +21,12 @@ export function ListEvents(arg1:context.Context,arg2:number):Promise<Array<servi
 
 export function ListGapFills(arg1:context.Context,arg2:number):Promise<Array<service.GapFill>>;
 
+export function ListOpenReviewItems(arg1:context.Context,arg2:number):Promise<Array<service.ReviewItem>>;
+
 export function ListPeriods(arg1:context.Context):Promise<Array<service.Period>>;
 
 export function ListSelectedCalendars(arg1:context.Context):Promise<Array<service.Calendar>>;
 
 export function ListTzSegments(arg1:context.Context,arg2:number):Promise<Array<service.TzSegment>>;
+
+export function SyncEvents(arg1:context.Context,arg2:number,arg3:Array<service.IncomingEvent>):Promise<service.SyncResult>;
