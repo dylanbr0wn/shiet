@@ -1,0 +1,4 @@
+# sqlc output is committed (build needs no codegen) but generated — collapse it
+# in GitHub diffs and exclude it from language stats. Regenerate with
+# ./scripts/sqlc-gen.sh; never hand-edit.
+internal/db/sqlc/** linguist-generated=true

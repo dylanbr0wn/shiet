@@ -1,3 +1,42 @@
+# ── Wails / build output ──────────────────────────────────────────────
 build/bin
-node_modules
 frontend/dist
+
+# ── Go ────────────────────────────────────────────────────────────────
+# Test/coverage artifacts
+*.test
+*.out
+coverage.*
+# Compiled local binaries (e.g. `go build` in repo root)
+/clockr
+/db
+
+# ── Frontend (Node / Vite) ────────────────────────────────────────────
+node_modules
+frontend/node_modules
+frontend/.vite
+*.tsbuildinfo
+npm-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# ── Local databases (SQLite + WAL/SHM sidecars) ───────────────────────
+*.dev.db
+*.dev.db-wal
+*.dev.db-shm
+*.db-wal
+*.db-shm
+
+# ── Secrets / local config ────────────────────────────────────────────
+.env
+.env.*
+!.env.example
+*.local
+
+# ── Editor / OS ───────────────────────────────────────────────────────
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json
+*.swp
+*~
