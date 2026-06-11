@@ -14,10 +14,24 @@ export function normalizeConfig(config?: Partial<SchedulerConfig>): SchedulerCon
   };
 
   const slotMinutes = clamp(Math.floor(merged.slotMinutes) || 1, 1, MINUTES_PER_DAY);
+  const scheduleRange = normalizeMinuteRange(
+    merged.scheduleStartMinutes,
+    merged.scheduleEndMinutes,
+    slotMinutes,
+  );
+  const workingRange = normalizeMinuteRange(
+    merged.workingStartMinutes,
+    merged.workingEndMinutes,
+    1,
+  );
 
   return {
     ...merged,
     slotMinutes,
+    scheduleStartMinutes: scheduleRange.startMinutes,
+    scheduleEndMinutes: scheduleRange.endMinutes,
+    workingStartMinutes: workingRange.startMinutes,
+    workingEndMinutes: workingRange.endMinutes,
     minDurationMinutes: clamp(merged.minDurationMinutes, 1, MINUTES_PER_DAY),
     createDurationMinutes: clamp(merged.createDurationMinutes, 1, MINUTES_PER_DAY),
     maxDays: Math.max(1, merged.maxDays),
@@ -27,6 +41,26 @@ export function normalizeConfig(config?: Partial<SchedulerConfig>): SchedulerCon
 
 export function clamp(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max);
+}
+
+function finiteMinute(value: number, fallback: number) {
+  return Number.isFinite(value) ? Math.floor(value) : fallback;
+}
+
+function normalizeMinuteRange(start: number, end: number, minDuration: number) {
+  const duration = clamp(Math.floor(minDuration) || 1, 1, MINUTES_PER_DAY);
+  const startMinutes = clamp(
+    finiteMinute(start, 0),
+    0,
+    MINUTES_PER_DAY - duration,
+  );
+  const endMinutes = clamp(
+    finiteMinute(end, startMinutes + duration),
+    startMinutes + duration,
+    MINUTES_PER_DAY,
+  );
+
+  return { startMinutes, endMinutes };
 }
 
 export function snapMinutes(value: number, slotMinutes: number) {
@@ -64,14 +98,21 @@ export function calculateVisibleRange<TMetadata>(
       endMinutes: Math.max(next.endMinutes, item.endMinutes),
     }),
     {
-      startMinutes: config.workingStartMinutes,
-      endMinutes: config.workingEndMinutes,
+      startMinutes: config.scheduleStartMinutes,
+      endMinutes: config.scheduleEndMinutes,
     },
   );
 
-  // Floor the start and ceil the end so items at the edges are never clipped.
-  const startMinutes = snapMinutesDown(range.startMinutes, config.slotMinutes);
-  const endMinutes = snapMinutesUp(range.endMinutes, config.slotMinutes);
+  // Floor the start and ceil the end so callers can opt into a narrower range
+  // without clipping off-slot items.
+  const startMinutes = Math.min(
+    config.scheduleStartMinutes,
+    snapMinutesDown(range.startMinutes, config.slotMinutes),
+  );
+  const endMinutes = Math.max(
+    config.scheduleEndMinutes,
+    snapMinutesUp(range.endMinutes, config.slotMinutes),
+  );
 
   return {
     startMinutes: clamp(startMinutes, 0, MINUTES_PER_DAY - config.slotMinutes),

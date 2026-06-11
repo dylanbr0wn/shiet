@@ -175,6 +175,8 @@ export function useScheduler<TItemMetadata = unknown, TDayMetadata = unknown>({
       configOverrides?.minDurationMinutes,
       configOverrides?.createDurationMinutes,
       configOverrides?.maxDays,
+      configOverrides?.scheduleStartMinutes,
+      configOverrides?.scheduleEndMinutes,
       configOverrides?.workingStartMinutes,
       configOverrides?.workingEndMinutes,
       configOverrides?.dragThresholdPx,

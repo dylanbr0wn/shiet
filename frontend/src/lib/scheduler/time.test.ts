@@ -50,6 +50,8 @@ describe("normalizeConfig", () => {
   it("applies defaults", () => {
     const config = normalizeConfig();
     expect(config.slotMinutes).toBe(15);
+    expect(config.scheduleStartMinutes).toBe(0);
+    expect(config.scheduleEndMinutes).toBe(MINUTES_PER_DAY);
     expect(config.workingStartMinutes).toBe(8 * 60);
   });
 
@@ -59,35 +61,42 @@ describe("normalizeConfig", () => {
       minDurationMinutes: -5,
       maxDays: 0,
       dragThresholdPx: -1,
+      scheduleStartMinutes: MINUTES_PER_DAY + 60,
+      scheduleEndMinutes: 0,
     });
     expect(config.slotMinutes).toBe(1);
     expect(config.minDurationMinutes).toBe(1);
     expect(config.maxDays).toBe(1);
     expect(config.dragThresholdPx).toBe(0);
+    expect(config.scheduleStartMinutes).toBe(MINUTES_PER_DAY - 1);
+    expect(config.scheduleEndMinutes).toBe(MINUTES_PER_DAY);
   });
 });
 
 describe("calculateVisibleRange", () => {
-  const config = normalizeConfig();
+  const config = normalizeConfig({
+    scheduleStartMinutes: 6 * 60,
+    scheduleEndMinutes: 20 * 60,
+  });
 
-  it("falls back to working hours with no items", () => {
+  it("falls back to the configured schedule range with no items", () => {
     expect(calculateVisibleRange([], config)).toEqual({
-      startMinutes: 8 * 60,
-      endMinutes: 18 * 60,
+      startMinutes: 6 * 60,
+      endMinutes: 20 * 60,
     });
   });
 
   it("expands without clipping off-slot items", () => {
     const range = calculateVisibleRange(
       [
-        { id: "a", day: "2026-06-08", startMinutes: 7 * 60 + 53, endMinutes: 9 * 60 },
-        { id: "b", day: "2026-06-08", startMinutes: 17 * 60, endMinutes: 19 * 60 + 7 },
+        { id: "a", day: "2026-06-08", startMinutes: 5 * 60 + 53, endMinutes: 9 * 60 },
+        { id: "b", day: "2026-06-08", startMinutes: 17 * 60, endMinutes: 20 * 60 + 7 },
       ],
       config,
     );
     // floor start / ceil end to the slot grid so both items stay fully visible
-    expect(range.startMinutes).toBe(7 * 60 + 45);
-    expect(range.endMinutes).toBe(19 * 60 + 15);
+    expect(range.startMinutes).toBe(5 * 60 + 45);
+    expect(range.endMinutes).toBe(20 * 60 + 15);
   });
 
   it("clamps to the day", () => {

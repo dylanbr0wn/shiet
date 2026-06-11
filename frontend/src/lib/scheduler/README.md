@@ -72,16 +72,20 @@ config: {
   minDurationMinutes: 15,      // smallest allowed item
   createDurationMinutes: 60,   // duration for click-to-create
   maxDays: 14,                 // hard cap on rendered days
-  workingStartMinutes: 480,    // 08:00 — minimum visible range
-  workingEndMinutes: 1080,     // 18:00 — expands to fit items
+  scheduleStartMinutes: 0,     // 00:00 — rendered range start
+  scheduleEndMinutes: 1440,    // 24:00 — rendered range end
+  workingStartMinutes: 480,    // 08:00 — normal-day highlight start
+  workingEndMinutes: 1080,     // 18:00 — normal-day highlight end
   dragThresholdPx: 4,          // pixels before a drag starts
   dragToCreate: true,          // drag empty space to create a range
   keyboard: true,              // arrow-key move/resize
 }
 ```
 
-The visible range is the working window expanded to fit all items, floored /
-ceiled to the slot grid so nothing is clipped.
+The visible range is the rendered schedule span, expanded only when items fall
+outside that span. By default it renders the whole day; use
+`workingStartMinutes` / `workingEndMinutes` in your UI to shade normal working
+hours inside that scrollable day.
 
 ## Constraining changes
 

@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import "@/index.css";
 import { Button } from "@/components/ui/button";
 import {
@@ -23,6 +23,12 @@ interface ScheduleMetadata {
 type DemoItem = SchedulerItem<ScheduleMetadata>;
 
 const START_DATE = "2026-06-08";
+const SCHEDULE_START_MINUTES = 0;
+const SCHEDULE_END_MINUTES = 24 * 60;
+const WORKING_START_MINUTES = 8 * 60;
+const WORKING_END_MINUTES = 18 * 60;
+const INITIAL_SCROLL_CONTEXT_MINUTES = 2 * 60;
+const TIMELINE_HOUR_HEIGHT = 56;
 
 const initialItems: DemoItem[] = [
   {
@@ -140,6 +146,8 @@ function App() {
   const [preview, setPreview] = useState<SchedulerChange<ScheduleMetadata> | null>(
     null,
   );
+  const schedulerViewportRef = useRef<HTMLDivElement | null>(null);
+  const didSetInitialScrollRef = useRef(false);
   const days = useMemo(() => buildDays(dayCount), [dayCount]);
   const totals = useMemo(() => {
     return items.reduce<Record<string, number>>((next, item) => {
@@ -181,6 +189,28 @@ function App() {
     );
     setPreview(null);
   };
+
+  useEffect(() => {
+    const viewport = schedulerViewportRef.current;
+    if (!viewport || didSetInitialScrollRef.current) {
+      return;
+    }
+
+    const visibleDuration = SCHEDULE_END_MINUTES - SCHEDULE_START_MINUTES;
+    const initialMinute = Math.max(
+      SCHEDULE_START_MINUTES,
+      WORKING_START_MINUTES - INITIAL_SCROLL_CONTEXT_MINUTES,
+    );
+    const timelineHeight = Math.max(
+      (visibleDuration / 60) * TIMELINE_HOUR_HEIGHT,
+      760,
+    );
+
+    viewport.scrollTop =
+      ((initialMinute - SCHEDULE_START_MINUTES) / visibleDuration) *
+      timelineHeight;
+    didSetInitialScrollRef.current = true;
+  }, []);
 
   return (
     <main className="min-h-screen bg-zinc-50 text-zinc-950">
@@ -228,6 +258,12 @@ function App() {
           <Scheduler
             days={days}
             items={items}
+            config={{
+              scheduleStartMinutes: SCHEDULE_START_MINUTES,
+              scheduleEndMinutes: SCHEDULE_END_MINUTES,
+              workingStartMinutes: WORKING_START_MINUTES,
+              workingEndMinutes: WORKING_END_MINUTES,
+            }}
             onCreate={handleCreate}
             onPreviewChange={setPreview}
             onCommitChange={handleCommit}
@@ -238,6 +274,31 @@ function App() {
                 scheduler.visibleRange.startMinutes;
               const slotPercent =
                 (scheduler.config.slotMinutes / visibleDuration) * 100;
+              const timelineHeight = Math.max(
+                (visibleDuration / 60) * TIMELINE_HOUR_HEIGHT,
+                760,
+              );
+              const minuteToPercent = (minute: number) =>
+                Math.min(
+                  Math.max(
+                    ((minute - scheduler.visibleRange.startMinutes) /
+                      visibleDuration) *
+                      100,
+                    0,
+                  ),
+                  100,
+                );
+              const workingStartPercent = minuteToPercent(
+                scheduler.config.workingStartMinutes,
+              );
+              const workingEndPercent = minuteToPercent(
+                scheduler.config.workingEndMinutes,
+              );
+              const dayBackground = [
+                `repeating-linear-gradient(to bottom, transparent 0, transparent calc(${slotPercent}% - 1px), rgb(228 228 231) calc(${slotPercent}% - 1px), rgb(228 228 231) ${slotPercent}%)`,
+                `linear-gradient(to bottom, rgb(250 250 250) 0%, rgb(250 250 250) ${workingStartPercent}%, transparent ${workingStartPercent}%, transparent ${workingEndPercent}%, rgb(250 250 250) ${workingEndPercent}%, rgb(250 250 250) 100%)`,
+              ].join(", ");
+              const timeAxisBackground = `linear-gradient(to bottom, rgb(244 244 245) 0%, rgb(244 244 245) ${workingStartPercent}%, rgb(250 250 250) ${workingStartPercent}%, rgb(250 250 250) ${workingEndPercent}%, rgb(244 244 245) ${workingEndPercent}%, rgb(244 244 245) 100%)`;
               const timelineMarks: number[] = [];
 
               for (
@@ -248,26 +309,39 @@ function App() {
                 timelineMarks.push(minute);
               }
 
+              const timeLabelClass = (minute: number) => {
+                if (minute === scheduler.visibleRange.startMinutes) {
+                  return "absolute right-3 translate-y-0 text-xs font-medium text-zinc-500";
+                }
+
+                if (minute === scheduler.visibleRange.endMinutes) {
+                  return "absolute right-3 -translate-y-full text-xs font-medium text-zinc-500";
+                }
+
+                return "absolute right-3 -translate-y-2 text-xs font-medium text-zinc-500";
+              };
+
               return (
                 <div
                   {...scheduler.getRootProps({
+                    ref: schedulerViewportRef,
                     className:
-                      "overflow-x-auto rounded-md border border-zinc-200 bg-white shadow-sm",
+                      "max-h-[calc(100vh-170px)] min-h-[520px] overflow-auto rounded-md border border-zinc-200 bg-white shadow-sm",
                   })}
                 >
                   <div
-                    className="grid min-h-[760px]"
+                    className="grid"
                     style={{
                       minWidth: `${72 + scheduler.days.length * 138}px`,
                       gridTemplateColumns: `72px repeat(${scheduler.days.length}, minmax(138px, 1fr))`,
-                      gridTemplateRows: "52px 1fr",
+                      gridTemplateRows: `52px ${timelineHeight}px`,
                     }}
                   >
-                    <div className="border-b border-r border-zinc-200 bg-zinc-100" />
+                    <div className="sticky left-0 top-0 z-40 border-b border-r border-zinc-200 bg-zinc-100" />
                     {scheduler.days.map((day) => (
                       <div
                         key={day.date}
-                        className="flex items-center border-b border-r border-zinc-200 bg-zinc-100 px-3"
+                        className="sticky top-0 z-30 flex items-center border-b border-r border-zinc-200 bg-zinc-100 px-3"
                       >
                         <div>
                           <p className="text-sm font-semibold text-zinc-950">
@@ -278,17 +352,16 @@ function App() {
                       </div>
                     ))}
 
-                    <div className="relative border-r border-zinc-200 bg-zinc-100">
+                    <div
+                      className="sticky left-0 z-20 border-r border-zinc-200"
+                      style={{ backgroundImage: timeAxisBackground }}
+                    >
                       {timelineMarks.map((minute) => (
                         <div
                           key={minute}
-                          className="absolute right-3 -translate-y-2 text-xs font-medium text-zinc-500"
+                          className={timeLabelClass(minute)}
                           style={{
-                            top: `${
-                              ((minute - scheduler.visibleRange.startMinutes) /
-                                visibleDuration) *
-                              100
-                            }%`,
+                            top: `${minuteToPercent(minute)}%`,
                           }}
                         >
                           {formatMinutes(minute)}
@@ -301,12 +374,20 @@ function App() {
                         key={day.date}
                         {...scheduler.getDayColumnProps(day, {
                           className:
-                            "relative min-h-[760px] border-r border-zinc-200 bg-white",
+                            "relative border-r border-zinc-200 bg-white",
                           style: {
-                            backgroundImage: `repeating-linear-gradient(to bottom, transparent 0, transparent calc(${slotPercent}% - 1px), rgb(228 228 231) calc(${slotPercent}% - 1px), rgb(228 228 231) ${slotPercent}%)`,
+                            height: `${timelineHeight}px`,
+                            backgroundImage: dayBackground,
                           },
                         })}
                       >
+                        {[workingStartPercent, workingEndPercent].map((percent) => (
+                          <div
+                            key={percent}
+                            className="pointer-events-none absolute inset-x-0 z-[1] border-t border-zinc-400/50"
+                            style={{ top: `${percent}%` }}
+                          />
+                        ))}
                         <SchedulerItemLayer scheduler={scheduler} day={day}>
                           {(layoutItem) => {
                             const item = layoutItem.item;

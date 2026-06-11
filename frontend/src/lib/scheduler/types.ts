@@ -26,6 +26,10 @@ export interface SchedulerConfig {
   minDurationMinutes: number;
   createDurationMinutes: number;
   maxDays: number;
+  /** Rendered vertical range. Defaults to the whole day so callers can scroll. */
+  scheduleStartMinutes: number;
+  scheduleEndMinutes: number;
+  /** Normal working window, useful for app-level highlighting. */
   workingStartMinutes: number;
   workingEndMinutes: number;
   /** Pixels the pointer must travel before a drag starts. Keeps clicks from becoming drags. */
@@ -89,6 +93,8 @@ export const DEFAULT_SCHEDULER_CONFIG: SchedulerConfig = {
   minDurationMinutes: 15,
   createDurationMinutes: 60,
   maxDays: 14,
+  scheduleStartMinutes: 0,
+  scheduleEndMinutes: 24 * 60,
   workingStartMinutes: 8 * 60,
   workingEndMinutes: 18 * 60,
   dragThresholdPx: 4,
