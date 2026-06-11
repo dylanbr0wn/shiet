@@ -11,6 +11,8 @@ import {
   type SchedulerDay,
   type SchedulerItem,
 } from "@/lib/scheduler";
+import { Clock } from "lucide-react";
+import { Separator } from "./components/ui/separator";
 
 type ScheduleKind = "calendar" | "gap" | "manual" | "review";
 
@@ -213,15 +215,17 @@ function App() {
   }, []);
 
   return (
-    <main className="app-drag-region app-window h-screen overflow-hidden bg-zinc-50 text-zinc-950 relative">
-      <div className="mx-auto flex h-full w-full max-w-375 flex-col gap-5 px-5 pb-5 pt-12">
-        <header className="flex flex-col gap-3 border-b border-zinc-200 pb-4 md:flex-row md:items-end md:justify-between">
-          <div>
-            <p className="text-sm font-medium text-zinc-500">Clockr</p>
-            <h1 className="text-2xl font-semibold tracking-normal text-zinc-950">
-              Period Schedule
-            </h1>
+    <main className="app-drag-region app-window relative h-screen overflow-hidden bg-zinc-50 text-zinc-950">
+      <div className="mx-auto flex h-full min-h-0 w-full max-w-375 flex-col gap-5 p-3 pt-2">
+        <header className="shrink-0 flex items-center gap-3 border-b border-zinc-200 pb-4 pl-21">
+          <div className="bg-primary rounded-md text-accent p-1.5">
+            <Clock className="size-4" />
           </div>
+          <div>
+            <h1 className="text-base font-medium">Clockr</h1>
+          </div>
+          <Separator orientation="vertical" className="my-2" />
+          <div className="grow" />
           <div className="app-no-drag flex flex-wrap items-center gap-2">
             <div className="flex rounded-md border border-zinc-200 bg-white p-1">
               {[1, 7, 14].map((count) => (
@@ -254,7 +258,7 @@ function App() {
           </div>
         </header>
 
-        <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_280px]">
+        <section className="grid min-h-0 flex-1 gap-4 lg:grid-cols-[minmax(0,1fr)_280px]">
           <Scheduler
             days={days}
             items={items}
@@ -326,7 +330,7 @@ function App() {
                   {...scheduler.getRootProps({
                     ref: schedulerViewportRef,
                     className:
-                      "app-no-drag max-h-94 min-h-[520px] overflow-auto rounded-md border border-zinc-200 bg-white shadow-sm",
+                      "app-no-drag h-full min-h-0 overflow-auto rounded-md border border-zinc-200 bg-white shadow-sm",
                   })}
                 >
                   <div
@@ -473,7 +477,7 @@ function App() {
             }}
           </Scheduler>
 
-          <aside className="app-no-drag space-y-4 rounded-md border border-zinc-200 bg-white p-4 shadow-sm">
+          <aside className="app-no-drag min-h-0 space-y-4 overflow-auto rounded-md border border-zinc-200 bg-white p-4 shadow-sm">
             <div>
               <h2 className="text-sm font-semibold text-zinc-950">Totals</h2>
               <div className="mt-3 space-y-2">
