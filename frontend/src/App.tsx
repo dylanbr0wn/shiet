@@ -318,6 +318,10 @@ function App() {
                               <div
                                 key={item.id}
                                 {...scheduler.getItemProps(layoutItem, {
+                                  onClick: (event) => {
+                                    event.preventDefault();
+                                    console.log("Clicked item", item);
+                                  },
                                   className: [
                                     "group z-10 flex min-h-10 cursor-grab flex-col overflow-hidden rounded-md border px-2 py-1 text-left text-xs shadow-sm transition-shadow active:cursor-grabbing",
                                     layoutItem.isPreview

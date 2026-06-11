@@ -129,6 +129,7 @@ export function useScheduler<TMetadata = unknown>({
   );
   const dayRefs = useRef(new Map<string, HTMLElement>());
   const activeRef = useRef<ActiveInteraction<TMetadata> | null>(null);
+  const suppressColumnClickUntilRef = useRef(0);
   const [previewChange, setPreviewChange] =
     useState<SchedulerChange<TMetadata> | null>(null);
 
@@ -273,6 +274,10 @@ export function useScheduler<TMetadata = unknown>({
     [config.minDurationMinutes, config.slotMinutes, dayAtX, pointToMinutes],
   );
 
+  const suppressColumnClick = useCallback(() => {
+    suppressColumnClickUntilRef.current = window.performance.now() + 350;
+  }, []);
+
   useEffect(() => {
     const handlePointerMove = (event: PointerEvent) => {
       const active = activeRef.current;
@@ -290,6 +295,7 @@ export function useScheduler<TMetadata = unknown>({
       }
 
       onCommitChange?.(active.lastChange);
+      suppressColumnClick();
       activeRef.current = null;
       setPreviewChange(null);
     };
@@ -303,7 +309,7 @@ export function useScheduler<TMetadata = unknown>({
       window.removeEventListener("pointerup", handlePointerUp);
       window.removeEventListener("pointercancel", handlePointerUp);
     };
-  }, [calculateChange, emitPreview, onCommitChange]);
+  }, [calculateChange, emitPreview, onCommitChange, suppressColumnClick]);
 
   const startInteraction = useCallback(
     (
@@ -331,8 +337,9 @@ export function useScheduler<TMetadata = unknown>({
         pointerStartMinute: pointToMinutes(event.clientY, item.day),
         lastChange: initialChange,
       };
+      suppressColumnClick();
     },
-    [pointToMinutes],
+    [pointToMinutes, suppressColumnClick],
   );
 
   const getRootProps = useCallback(
@@ -354,6 +361,12 @@ export function useScheduler<TMetadata = unknown>({
     ): ElementProps<TElement> => {
       const handleClick = (event: React.MouseEvent<TElement>) => {
         if (event.defaultPrevented || day.disabled) {
+          return;
+        }
+
+        if (window.performance.now() < suppressColumnClickUntilRef.current) {
+          event.preventDefault();
+          event.stopPropagation();
           return;
         }
 
