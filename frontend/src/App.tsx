@@ -11,9 +11,21 @@ import {
   type SchedulerDay,
   type SchedulerItem,
 } from "@/lib/scheduler";
+import {
+  useCategories,
+  useEvents,
+  useGapFills,
+  useOpenReviewItems,
+  usePeriods,
+  type Category,
+  type Event as ClockrEvent,
+  type GapFill,
+} from "@/lib/api";
 import { Clock } from "lucide-react";
 import { Separator } from "./components/ui/separator";
 import { Environment } from "../wailsjs/runtime/runtime";
+import { Card, CardContent, CardHeader, CardTitle } from "./components/ui/card";
+import { cn } from "./lib/utils";
 
 type ScheduleKind = "calendar" | "gap" | "manual" | "review";
 
@@ -21,9 +33,16 @@ interface ScheduleMetadata {
   title: string;
   category: string;
   kind: ScheduleKind;
+  source: "backend" | "demo" | "draft";
+}
+
+interface ScheduleDayMetadata {
+  isWeekend: boolean;
 }
 
 type DemoItem = SchedulerItem<ScheduleMetadata>;
+type DemoDay = SchedulerDay<ScheduleDayMetadata>;
+type SchedulePlacement = Pick<DemoItem, "day" | "endMinutes" | "startMinutes">;
 
 const START_DATE = "2026-06-08";
 const SCHEDULE_START_MINUTES = 0;
@@ -45,6 +64,7 @@ const initialItems: DemoItem[] = [
       title: "Sprint planning",
       category: "Product",
       kind: "calendar",
+      source: "demo",
     },
   },
   {
@@ -56,6 +76,7 @@ const initialItems: DemoItem[] = [
       title: "Design review",
       category: "Client",
       kind: "review",
+      source: "demo",
     },
   },
   {
@@ -67,6 +88,7 @@ const initialItems: DemoItem[] = [
       title: "Implementation",
       category: "Engineering",
       kind: "gap",
+      source: "demo",
     },
   },
   {
@@ -78,6 +100,7 @@ const initialItems: DemoItem[] = [
       title: "Vendor call",
       category: "Operations",
       kind: "calendar",
+      source: "demo",
     },
   },
   {
@@ -89,18 +112,21 @@ const initialItems: DemoItem[] = [
       title: "Timesheet notes",
       category: "Admin",
       kind: "manual",
+      source: "demo",
     },
   },
 ];
 
-function buildDays(count: number): SchedulerDay[] {
-  const [year, month, day] = START_DATE.split("-").map(Number);
+function buildDays(startDate: string, count: number): DemoDay[] {
+  const [year, month, day] = startDate.split("-").map(Number);
   const start = new Date(Date.UTC(year, month - 1, day));
 
   return Array.from({ length: count }, (_, index) => {
     const date = new Date(start);
     date.setUTCDate(start.getUTCDate() + index);
     const isoDate = date.toISOString().slice(0, 10);
+    const dayOfWeek = date.getUTCDay();
+
     return {
       date: isoDate,
       label: date.toLocaleDateString(undefined, {
@@ -109,6 +135,9 @@ function buildDays(count: number): SchedulerDay[] {
         day: "numeric",
         timeZone: "UTC",
       }),
+      metadata: {
+        isWeekend: dayOfWeek === 0 || dayOfWeek === 6,
+      },
     };
   });
 }
@@ -145,24 +174,213 @@ function durationLabel(item: DemoItem) {
   return formatDuration(item.endMinutes - item.startMinutes);
 }
 
+function toDate(value: string | undefined) {
+  if (!value) {
+    return null;
+  }
+
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function dateKeyFromDate(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function minutesFromDate(date: Date) {
+  return date.getHours() * 60 + date.getMinutes();
+}
+
+function categoryName(
+  categoryId: number | undefined,
+  categoriesById: Map<number, Category>,
+) {
+  if (typeof categoryId !== "number") {
+    return "Unassigned";
+  }
+
+  return categoriesById.get(categoryId)?.name ?? "Unassigned";
+}
+
+function applyPlacement(item: DemoItem, placement?: SchedulePlacement) {
+  if (!placement) {
+    return item;
+  }
+
+  return {
+    ...item,
+    ...placement,
+  };
+}
+
+function eventToSchedulerItem(
+  event: ClockrEvent,
+  placement?: SchedulePlacement,
+): DemoItem | null {
+  if (event.allDay && event.startDate) {
+    return applyPlacement(
+      {
+        id: `event-${event.id}`,
+        day: event.startDate,
+        startMinutes: SCHEDULE_START_MINUTES,
+        endMinutes: SCHEDULE_END_MINUTES,
+        metadata: {
+          title: event.title || "Untitled event",
+          category: "Calendar",
+          kind: "calendar",
+          source: "backend",
+        },
+      },
+      placement,
+    );
+  }
+
+  const start = toDate(event.start);
+  const end = toDate(event.end);
+
+  if (!start || !end) {
+    return null;
+  }
+
+  const startMinutes = minutesFromDate(start);
+  const endMinutes =
+    dateKeyFromDate(end) === dateKeyFromDate(start)
+      ? minutesFromDate(end)
+      : SCHEDULE_END_MINUTES;
+
+  return applyPlacement(
+    {
+      id: `event-${event.id}`,
+      day: dateKeyFromDate(start),
+      startMinutes,
+      endMinutes: Math.max(startMinutes + 15, endMinutes),
+      metadata: {
+        title: event.title || "Untitled event",
+        category: "Calendar",
+        kind: "calendar",
+        source: "backend",
+      },
+    },
+    placement,
+  );
+}
+
+function gapFillToSchedulerItem(
+  gapFill: GapFill,
+  categoriesById: Map<number, Category>,
+  placement?: SchedulePlacement,
+): DemoItem | null {
+  const start = toDate(gapFill.start);
+  const end = toDate(gapFill.end);
+
+  if (!start || !end) {
+    return null;
+  }
+
+  const startMinutes = minutesFromDate(start);
+  const endMinutes =
+    dateKeyFromDate(end) === dateKeyFromDate(start)
+      ? minutesFromDate(end)
+      : SCHEDULE_END_MINUTES;
+  const category = categoryName(gapFill.categoryId, categoriesById);
+
+  return applyPlacement(
+    {
+      id: `gap-fill-${gapFill.id}`,
+      day: gapFill.day || dateKeyFromDate(start),
+      startMinutes,
+      endMinutes: Math.max(startMinutes + 15, endMinutes),
+      metadata: {
+        title: gapFill.note || category,
+        category,
+        kind: "manual",
+        source: "backend",
+      },
+    },
+    placement,
+  );
+}
+
+function errorMessage(error: unknown) {
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  return String(error);
+}
+
 function getInitialPlatform() {
   return navigator.platform.toLowerCase().includes("mac") ? "darwin" : "";
 }
 
 function App() {
   const [dayCount, setDayCount] = useState(7);
-  const [items, setItems] = useState<DemoItem[]>(initialItems);
+  const [demoItems, setDemoItems] = useState<DemoItem[]>(initialItems);
+  const [draftItems, setDraftItems] = useState<DemoItem[]>([]);
+  const [draftPlacements, setDraftPlacements] = useState<
+    Record<string, SchedulePlacement>
+  >({});
   const [preview, setPreview] = useState<SchedulerChange<ScheduleMetadata> | null>(
     null,
   );
   const [platform, setPlatform] = useState(getInitialPlatform);
   const schedulerViewportRef = useRef<HTMLDivElement | null>(null);
   const didSetInitialScrollRef = useRef(false);
-  const days = useMemo(() => buildDays(dayCount), [dayCount]);
+  const periodsQuery = usePeriods();
+  const categoriesQuery = useCategories();
+  const periods = useMemo(() => periodsQuery.data ?? [], [periodsQuery.data]);
+  const categories = useMemo(
+    () => categoriesQuery.data ?? [],
+    [categoriesQuery.data],
+  );
+  const activePeriod = periods[0] ?? null;
+  const activePeriodId = activePeriod?.id;
+  const eventsQuery = useEvents(activePeriodId);
+  const gapFillsQuery = useGapFills(activePeriodId);
+  const reviewItemsQuery = useOpenReviewItems(activePeriodId);
+  const categoriesById = useMemo(() => {
+    return new Map(categories.map((category) => [category.id, category]));
+  }, [categories]);
+  const days = useMemo(
+    () => buildDays(activePeriod?.startDate ?? START_DATE, dayCount),
+    [activePeriod?.startDate, dayCount],
+  );
   const titlebarPaddingClass =
     platform === "darwin"
       ? MAC_TITLEBAR_PADDING_CLASS
       : DEFAULT_TITLEBAR_PADDING_CLASS;
+  const backendItems = useMemo(() => {
+    const events = eventsQuery.data ?? [];
+    const gapFills = gapFillsQuery.data ?? [];
+
+    return [
+      ...events
+        .map((event) =>
+          eventToSchedulerItem(event, draftPlacements[`event-${event.id}`]),
+        )
+        .filter((item): item is DemoItem => item !== null),
+      ...gapFills
+        .map((gapFill) =>
+          gapFillToSchedulerItem(
+            gapFill,
+            categoriesById,
+            draftPlacements[`gap-fill-${gapFill.id}`],
+          ),
+        )
+        .filter((item): item is DemoItem => item !== null),
+    ];
+  }, [categoriesById, draftPlacements, eventsQuery.data, gapFillsQuery.data]);
+  const isBackendScheduleActive = Boolean(activePeriod);
+  const items = useMemo(
+    () =>
+      isBackendScheduleActive
+        ? [...backendItems, ...draftItems]
+        : demoItems,
+    [backendItems, demoItems, draftItems, isBackendScheduleActive],
+  );
   const totals = useMemo(() => {
     return items.reduce<Record<string, number>>((next, item) => {
       const key = item.metadata?.category ?? "Unassigned";
@@ -170,26 +388,43 @@ function App() {
       return next;
     }, {});
   }, [items]);
+  const isBackendLoading =
+    periodsQuery.isLoading ||
+    categoriesQuery.isLoading ||
+    eventsQuery.isLoading ||
+    gapFillsQuery.isLoading ||
+    reviewItemsQuery.isLoading;
+  const backendError =
+    periodsQuery.error ??
+    categoriesQuery.error ??
+    eventsQuery.error ??
+    gapFillsQuery.error ??
+    reviewItemsQuery.error;
 
   const handleCreate = (request: SchedulerCreateRequest) => {
-    setItems((current) => [
-      ...current,
-      {
-        id: `manual-${Date.now()}`,
-        day: request.day,
-        startMinutes: request.startMinutes,
-        endMinutes: request.endMinutes,
-        metadata: {
-          title: "New block",
-          category: "Manual",
-          kind: "manual",
-        },
+    const item: DemoItem = {
+      id: `manual-${Date.now()}`,
+      day: request.day,
+      startMinutes: request.startMinutes,
+      endMinutes: request.endMinutes,
+      metadata: {
+        title: "New block",
+        category: "Manual",
+        kind: "manual",
+        source: isBackendScheduleActive ? "draft" : "demo",
       },
-    ]);
+    };
+
+    if (isBackendScheduleActive) {
+      setDraftItems((current) => [...current, item]);
+      return;
+    }
+
+    setDemoItems((current) => [...current, item]);
   };
 
   const handleCommit = (change: SchedulerChange<ScheduleMetadata>) => {
-    setItems((current) =>
+    const updateItems = (current: DemoItem[]) =>
       current.map((item) =>
         item.id === change.itemId
           ? {
@@ -199,8 +434,25 @@ function App() {
               endMinutes: change.endMinutes,
             }
           : item,
-      ),
-    );
+      );
+
+    if (isBackendScheduleActive) {
+      if (change.itemId.startsWith("event-") || change.itemId.startsWith("gap-fill-")) {
+        setDraftPlacements((current) => ({
+          ...current,
+          [change.itemId]: {
+            day: change.day,
+            startMinutes: change.startMinutes,
+            endMinutes: change.endMinutes,
+          },
+        }));
+      } else {
+        setDraftItems(updateItems);
+      }
+    } else {
+      setDemoItems(updateItems);
+    }
+
     setPreview(null);
   };
 
@@ -293,7 +545,7 @@ function App() {
           </div>
         </header>
         <Separator />
-        <section className="grid min-h-0 flex-1 gap-4 lg:grid-cols-[minmax(0,1fr)_280px] p-3 bg-muted">
+        <section className="grid min-h-0 flex-1 gap-4 lg:grid-cols-[minmax(0,1fr)_320px] p-3 bg-muted">
           <Scheduler
             days={days}
             items={items}
@@ -333,10 +585,9 @@ function App() {
               const workingEndPercent = minuteToPercent(
                 scheduler.config.workingEndMinutes,
               );
-              const dayBackground = [
-                `repeating-linear-gradient(to bottom, transparent 0, transparent calc(${slotPercent}% - 1px), rgb(228 228 231) calc(${slotPercent}% - 1px), rgb(228 228 231) ${slotPercent}%)`,
-                `linear-gradient(to bottom, rgb(250 250 250) 0%, rgb(250 250 250) ${workingStartPercent}%, transparent ${workingStartPercent}%, transparent ${workingEndPercent}%, rgb(250 250 250) ${workingEndPercent}%, rgb(250 250 250) 100%)`,
-              ].join(", ");
+              const hourGridBackground = `repeating-linear-gradient(to bottom, transparent 0, transparent calc(${slotPercent}% - 1px), rgb(228 228 231) calc(${slotPercent}% - 1px), rgb(228 228 231) ${slotPercent}%)`;
+              const nonWorkingHoursBackground =
+                "repeating-linear-gradient(135deg, rgba(244, 244, 245, 0.7) 0 6px, transparent 6px 12px), rgba(244, 244, 245, 0.45)";
               const timelineMarks: number[] = [];
 
               for (
@@ -364,34 +615,38 @@ function App() {
                   {...scheduler.getRootProps({
                     ref: schedulerViewportRef,
                     className:
-                      "app-no-drag h-full min-h-0 overflow-auto overscroll-none rounded-md border border-border bg-background shadow-sm",
+                      "app-no-drag h-full min-h-0 overflow-auto overscroll-none rounded-xl bg-card text-sm text-card-foreground ring-1 ring-foreground/10",
                   })}
                 >
                   <div
                     className="grid"
                     style={{
-                      minWidth: `${72 + scheduler.days.length * 138}px`,
-                      gridTemplateColumns: `72px repeat(${scheduler.days.length}, minmax(138px, 1fr))`,
+                      minWidth: `${72 + scheduler.days.length * 116}px`,
+                      gridTemplateColumns: `72px repeat(${scheduler.days.length}, minmax(116px, 1fr))`,
                       gridTemplateRows: `52px ${timelineHeight}px`,
                     }}
                   >
                     <div className="sticky left-0 top-0 z-40 border-b border-r border-border bg-background" />
-                    {scheduler.days.map((day) => (
+                    {scheduler.days.map((day, index) => (
                       <div
                         key={day.date}
-                        className="sticky top-0 z-30 flex items-center border-b border-r border-border bg-background px-3"
+                        className={cn([
+                          "sticky top-0 z-30 flex items-center border-b border-border px-3",
+                          day.metadata?.isWeekend ? "bg-muted" : "bg-background",
+                          index % dayCount !== dayCount-1 ? "border-r" : "",
+                        ])}
                       >
                         <div>
-                          <p className="text-sm font-semibold text-zinc-950">
+                          <p className="text-sm font-semibold text-foreground">
                             {day.label}
                           </p>
-                          <p className="text-xs text-zinc-500">{day.date}</p>
+                          <p className="text-xs text-muted-foreground">{day.date}</p>
                         </div>
                       </div>
                     ))}
 
                     <div
-                      className="sticky left-0 z-20 border-r border-zinc-200 bg-background"
+                      className="sticky left-0 z-20 border-r border-border bg-background"
                     >
                       {timelineMarks.map((minute) => (
                         <div
@@ -406,147 +661,225 @@ function App() {
                       ))}
                     </div>
 
-                    {scheduler.days.map((day) => (
-                      <div
-                        key={day.date}
-                        {...scheduler.getDayColumnProps(day, {
-                          className:
-                            "relative border-r border-zinc-200 bg-white",
-                          style: {
-                            height: `${timelineHeight}px`,
-                            backgroundImage: dayBackground,
-                          },
-                        })}
-                      >
-                        {[workingStartPercent, workingEndPercent].map((percent) => (
-                          <div
-                            key={percent}
-                            className="pointer-events-none absolute inset-x-0 z-1 border-t border-border"
-                            style={{ top: `${percent}%` }}
-                          />
-                        ))}
-                        <SchedulerItemLayer scheduler={scheduler} day={day}>
-                          {(layoutItem) => {
-                            const item = layoutItem.item;
+                    {scheduler.days.map((day) => {
+                      const isWeekend = day.metadata?.isWeekend;
 
-                            if (item.id === CREATE_PREVIEW_ITEM_ID) {
+                      return (
+                        <div
+                          key={day.date}
+                          {...scheduler.getDayColumnProps(day, {
+                            className: cn([
+                              "relative not-last:border-r border-border",
+                              isWeekend ? "bg-muted" : "bg-background",
+                            ]),
+                            style: {
+                              height: `${timelineHeight}px`,
+                              backgroundImage: hourGridBackground,
+                            },
+                          })}
+                        >
+                          {!isWeekend && (
+                            <>
+                              <div
+                                className="pointer-events-none absolute inset-x-0 top-0 z-0"
+                                style={{
+                                  height: `${workingStartPercent}%`,
+                                  background: nonWorkingHoursBackground,
+                                }}
+                              />
+                              <div
+                                className="pointer-events-none absolute inset-x-0 bottom-0 z-0"
+                                style={{
+                                  top: `${workingEndPercent}%`,
+                                  background: nonWorkingHoursBackground,
+                                }}
+                              />
+                              {[workingStartPercent, workingEndPercent].map(
+                                (percent) => (
+                                  <div
+                                    key={percent}
+                                    className="pointer-events-none absolute inset-x-0 z-1 border-t border-border"
+                                    style={{ top: `${percent}%` }}
+                                  />
+                                ),
+                              )}
+                            </>
+                          )}
+                          <SchedulerItemLayer scheduler={scheduler} day={day}>
+                            {(layoutItem) => {
+                              const item = layoutItem.item;
+
+                              if (item.id === CREATE_PREVIEW_ITEM_ID) {
+                                return (
+                                  <div
+                                    key={item.id}
+                                    {...scheduler.getItemProps(layoutItem, {
+                                      className:
+                                        "pointer-events-none select-none z-20 flex flex-col justify-center rounded-md border border-dashed border-amber-300 bg-amber-50/80 px-2 py-1 text-xs text-amber-950",
+                                    })}
+                                  >
+                                    {formatMinutes(item.startMinutes)}-
+                                    {formatMinutes(item.endMinutes)}
+                                  </div>
+                                );
+                              }
+
+                              const metadata = item.metadata;
+                              const itemClass = metadata
+                                ? kindClasses(metadata.kind)
+                                : "border-zinc-300 bg-zinc-50 text-zinc-950";
+
                               return (
                                 <div
                                   key={item.id}
                                   {...scheduler.getItemProps(layoutItem, {
-                                    className:
-                                      "pointer-events-none z-20 flex flex-col justify-center rounded-md border-2 border-dashed border-zinc-400 bg-zinc-100/80 px-2 py-1 text-xs text-zinc-600",
+                                    onClick: () => {
+                                      console.log("Clicked item", item);
+                                    },
+                                    className: [
+                                      "group z-10 flex min-h-10 cursor-grab flex-col overflow-hidden rounded-md border px-2 py-1 text-left text-xs shadow-sm transition-shadow active:cursor-grabbing",
+                                      layoutItem.isPreview
+                                        ? "opacity-70 ring-2 ring-zinc-900/20"
+                                        : "hover:shadow-md",
+                                      itemClass,
+                                    ].join(" "),
                                   })}
                                 >
-                                  {formatMinutes(item.startMinutes)}-
-                                  {formatMinutes(item.endMinutes)}
+                                  <div
+                                    {...scheduler.getResizeHandleProps(
+                                      layoutItem,
+                                      "start",
+                                      {
+                                        className:
+                                          "absolute inset-x-2 top-0 h-2 cursor-ns-resize rounded-full opacity-0 group-hover:opacity-100",
+                                      },
+                                    )}
+                                  />
+                                  <div className="min-w-0">
+                                    <p className="truncate font-semibold">
+                                      {metadata?.title ?? "Untitled"}
+                                    </p>
+                                    <p className="truncate text-[11px] opacity-75">
+                                      {formatMinutes(item.startMinutes)}-
+                                      {formatMinutes(item.endMinutes)} ·{" "}
+                                      {durationLabel(item)}
+                                    </p>
+                                  </div>
+                                  <div className="mt-auto truncate text-[11px] font-medium opacity-80">
+                                    {metadata?.category ?? "Unassigned"}
+                                  </div>
+                                  <div
+                                    {...scheduler.getResizeHandleProps(
+                                      layoutItem,
+                                      "end",
+                                      {
+                                        className:
+                                          "absolute inset-x-2 bottom-0 h-2 cursor-ns-resize rounded-full opacity-0 group-hover:opacity-100",
+                                      },
+                                    )}
+                                  />
                                 </div>
                               );
-                            }
-
-                            const metadata = item.metadata;
-                            const itemClass = metadata
-                              ? kindClasses(metadata.kind)
-                              : "border-zinc-300 bg-zinc-50 text-zinc-950";
-
-                            return (
-                              <div
-                                key={item.id}
-                                {...scheduler.getItemProps(layoutItem, {
-                                  onClick: () => {
-                                    console.log("Clicked item", item);
-                                  },
-                                  className: [
-                                    "group z-10 flex min-h-10 cursor-grab flex-col overflow-hidden rounded-md border px-2 py-1 text-left text-xs shadow-sm transition-shadow active:cursor-grabbing",
-                                    layoutItem.isPreview
-                                      ? "opacity-70 ring-2 ring-zinc-900/20"
-                                      : "hover:shadow-md",
-                                    itemClass,
-                                  ].join(" "),
-                                })}
-                              >
-                                <div
-                                  {...scheduler.getResizeHandleProps(
-                                    layoutItem,
-                                    "start",
-                                    {
-                                      className:
-                                        "absolute inset-x-2 top-0 h-2 cursor-ns-resize rounded-full opacity-0 group-hover:opacity-100",
-                                    },
-                                  )}
-                                />
-                                <div className="min-w-0">
-                                  <p className="truncate font-semibold">
-                                    {metadata?.title ?? "Untitled"}
-                                  </p>
-                                  <p className="truncate text-[11px] opacity-75">
-                                    {formatMinutes(item.startMinutes)}-
-                                    {formatMinutes(item.endMinutes)} ·{" "}
-                                    {durationLabel(item)}
-                                  </p>
-                                </div>
-                                <div className="mt-auto truncate text-[11px] font-medium opacity-80">
-                                  {metadata?.category ?? "Unassigned"}
-                                </div>
-                                <div
-                                  {...scheduler.getResizeHandleProps(
-                                    layoutItem,
-                                    "end",
-                                    {
-                                      className:
-                                        "absolute inset-x-2 bottom-0 h-2 cursor-ns-resize rounded-full opacity-0 group-hover:opacity-100",
-                                    },
-                                  )}
-                                />
-                              </div>
-                            );
-                          }}
-                        </SchedulerItemLayer>
-                      </div>
-                    ))}
+                            }}
+                          </SchedulerItemLayer>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               );
             }}
           </Scheduler>
-
-          <aside className="app-no-drag min-h-0 space-y-4 overflow-auto overscroll-none rounded-md border border-zinc-200 bg-white p-4 shadow-sm">
-            <div>
-              <h2 className="text-sm font-semibold text-zinc-950">Totals</h2>
-              <div className="mt-3 space-y-2">
-                {Object.entries(totals).map(([category, minutes]) => (
-                  <div
-                    key={category}
-                    className="flex items-center justify-between gap-3 text-sm"
-                  >
-                    <span className="truncate text-zinc-600">{category}</span>
-                    <span className="font-semibold text-zinc-950">
-                      {formatDuration(minutes)}
+          <div className="flex flex-col gap-4">
+            <Card className="app-no-drag min-h-0 space-y-4 overflow-auto overscroll-none">
+              <CardHeader>
+                <CardTitle className="text-sm">Totals by category</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="mt-3 space-y-2">
+                  {Object.entries(totals).map(([category, minutes]) => (
+                    <div
+                      key={category}
+                      className="flex items-center justify-between gap-3 text-sm"
+                    >
+                      <span className="truncate text-zinc-600">{category}</span>
+                      <span className="font-semibold text-zinc-950">
+                        {formatDuration(minutes)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+                <div className="border-t border-zinc-200 pt-4">
+                  <h2 className="text-sm font-semibold text-zinc-950">Preview</h2>
+                  <div className="mt-3 min-h-16 rounded-md border border-zinc-200 bg-zinc-50 p-3 text-sm text-zinc-600">
+                    {preview ? (
+                      <div className="space-y-1">
+                        <p className="font-medium text-zinc-950">
+                          {preview.interaction}
+                        </p>
+                        <p>{preview.day}</p>
+                        <p>
+                          {formatMinutes(preview.startMinutes)}-
+                          {formatMinutes(preview.endMinutes)}
+                        </p>
+                      </div>
+                    ) : (
+                      <p>Idle</p>
+                    )}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            <Card className="app-no-drag">
+              <CardHeader>
+                <CardTitle className="text-sm">Backend</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3 text-sm">
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-muted-foreground">Period</span>
+                    <span className="truncate font-medium">
+                      {activePeriod
+                        ? `${activePeriod.startDate} to ${activePeriod.endDate}`
+                        : "Demo"}
                     </span>
                   </div>
-                ))}
-              </div>
-            </div>
-            <div className="border-t border-zinc-200 pt-4">
-              <h2 className="text-sm font-semibold text-zinc-950">Preview</h2>
-              <div className="mt-3 min-h-16 rounded-md border border-zinc-200 bg-zinc-50 p-3 text-sm text-zinc-600">
-                {preview ? (
-                  <div className="space-y-1">
-                    <p className="font-medium text-zinc-950">
-                      {preview.interaction}
-                    </p>
-                    <p>{preview.day}</p>
-                    <p>
-                      {formatMinutes(preview.startMinutes)}-
-                      {formatMinutes(preview.endMinutes)}
-                    </p>
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-muted-foreground">Events</span>
+                    <span className="font-medium">
+                      {eventsQuery.data?.length ?? 0}
+                    </span>
                   </div>
-                ) : (
-                  <p>Idle</p>
-                )}
-              </div>
-            </div>
-          </aside>
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-muted-foreground">Gap fills</span>
+                    <span className="font-medium">
+                      {gapFillsQuery.data?.length ?? 0}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-muted-foreground">Categories</span>
+                    <span className="font-medium">{categories.length}</span>
+                  </div>
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-muted-foreground">Review</span>
+                    <span className="font-medium">
+                      {reviewItemsQuery.data?.length ?? 0}
+                    </span>
+                  </div>
+                  {isBackendLoading && (
+                    <p className="rounded-md border border-zinc-200 bg-white p-2 text-xs text-muted-foreground">
+                      Loading backend data
+                    </p>
+                  )}
+                  {backendError && (
+                    <p className="rounded-md border border-destructive/30 bg-destructive/10 p-2 text-xs text-destructive">
+                      {errorMessage(backendError)}
+                    </p>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
         </section>
       </div>
     </main>
