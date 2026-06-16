@@ -1,0 +1,8 @@
+export const START_DATE = "2026-06-08";
+export const FALLBACK_DAY_COUNT = 7;
+export const SCHEDULE_START_MINUTES = 0;
+export const SCHEDULE_END_MINUTES = 24 * 60;
+export const WORKING_START_MINUTES = 8 * 60;
+export const WORKING_END_MINUTES = 18 * 60;
+export const INITIAL_SCROLL_CONTEXT_MINUTES = 2 * 60;
+export const TIMELINE_HOUR_HEIGHT = 56;

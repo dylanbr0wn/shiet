@@ -1,0 +1,42 @@
+import { Separator } from "@/components/ui/separator";
+import { ScheduleHeader } from "./ScheduleHeader";
+import { ScheduleSidebar } from "./ScheduleSidebar";
+import { ScheduleTimeline } from "./ScheduleTimeline";
+import { useSchedulePage } from "./useSchedulePage";
+
+interface SchedulePageProps {
+  titlebarPaddingClass: string;
+}
+
+export function SchedulePage({ titlebarPaddingClass }: SchedulePageProps) {
+  const schedule = useSchedulePage();
+
+  return (
+    <>
+      <ScheduleHeader
+        titlebarPaddingClass={titlebarPaddingClass}
+        schedule={schedule}
+      />
+      <Separator />
+      <section className="grid min-h-0 flex-1 gap-4 lg:grid-cols-[minmax(0,1fr)_320px] p-3 bg-muted">
+        <ScheduleTimeline
+          days={schedule.days}
+          items={schedule.items}
+          visibleDayCount={schedule.visibleDayCount}
+          onCreate={schedule.handleCreate}
+          onPreviewChange={schedule.setPreview}
+          onCommitChange={schedule.handleCommit}
+        />
+        <ScheduleSidebar
+          activePeriod={schedule.activePeriod}
+          visibleDayCount={schedule.visibleDayCount}
+          totals={schedule.totals}
+          preview={schedule.preview}
+          counts={schedule.counts}
+          isBackendLoading={schedule.isBackendLoading}
+          backendError={schedule.backendError}
+        />
+      </section>
+    </>
+  );
+}
