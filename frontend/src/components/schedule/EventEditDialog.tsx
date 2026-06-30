@@ -175,12 +175,16 @@ export function EventEditDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Edit event</DialogTitle>
+          <DialogTitle>{event?.isNew ? "New event" : "Edit event"}</DialogTitle>
           <DialogDescription>
             {event
-              ? `${event.category} · ${formatMinutes(
-                  event.startMinutes,
-                )}-${formatMinutes(event.endMinutes)}`
+              ? event.isNew
+                ? `${formatMinutes(event.startMinutes)}-${formatMinutes(
+                    event.endMinutes,
+                  )}`
+                : `${event.category} · ${formatMinutes(
+                    event.startMinutes,
+                  )}-${formatMinutes(event.endMinutes)}`
               : "Update the selected event."}
           </DialogDescription>
         </DialogHeader>
@@ -291,7 +295,13 @@ export function EventEditDialog({
             </Button>
             <Button type="submit" disabled={isSaving}>
               <SaveIcon data-icon="inline-start" />
-              {isSaving ? "Saving" : "Save"}
+              {isSaving
+                ? event?.isNew
+                  ? "Creating"
+                  : "Saving"
+                : event?.isNew
+                  ? "Create"
+                  : "Save"}
             </Button>
           </DialogFooter>
         </form>

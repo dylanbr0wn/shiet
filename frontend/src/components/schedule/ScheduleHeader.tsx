@@ -87,7 +87,7 @@ export function ScheduleHeader({
           type="button"
           disabled={
             !schedule.activePeriodId ||
-            schedule.createPending ||
+            schedule.editingEvent !== null ||
             schedule.days.length === 0
           }
           onClick={() =>
@@ -99,7 +99,7 @@ export function ScheduleHeader({
           }
         >
           <Plus />
-          {schedule.createPending ? "Saving" : "Add Block"}
+          Add Block
         </Button>
         <SettingsDialog>
           <Button

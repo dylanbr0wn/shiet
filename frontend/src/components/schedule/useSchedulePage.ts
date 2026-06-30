@@ -78,7 +78,7 @@ export interface SchedulePageViewModel {
 
 export interface EditableScheduleEvent {
   id: string;
-  gapFillId: number;
+  gapFillId?: number;
   periodId: number;
   day: string;
   startMinutes: number;
@@ -86,6 +86,7 @@ export interface EditableScheduleEvent {
   category: string;
   categoryId?: number;
   note: string;
+  isNew?: boolean;
 }
 
 export interface ScheduleEventEditValues {
@@ -105,6 +106,8 @@ export function useSchedulePage(): SchedulePageViewModel {
   >({});
   const [preview, setPreview] = useState<ScheduleChange | null>(null);
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
+  const [pendingCreate, setPendingCreate] =
+    useState<SchedulerCreateRequest | null>(null);
   const today = useMemo(() => localDateKey(), []);
   const currentTimeZone = useMemo(() => defaultTimeZone(), []);
   const periodsQuery = usePeriods();
@@ -207,6 +210,19 @@ export function useSchedulePage(): SchedulePageViewModel {
   ]);
   const items = backendItems;
   const editingEvent = useMemo(() => {
+    if (pendingCreate && activePeriodId) {
+      return {
+        id: "__new__",
+        periodId: activePeriodId,
+        day: pendingCreate.day,
+        startMinutes: pendingCreate.startMinutes,
+        endMinutes: pendingCreate.endMinutes,
+        category: "Unassigned",
+        note: "",
+        isNew: true,
+      };
+    }
+
     if (!editingItemId) {
       return null;
     }
@@ -229,7 +245,7 @@ export function useSchedulePage(): SchedulePageViewModel {
       categoryId: gapFill.categoryId,
       note: gapFill.note ?? "",
     };
-  }, [editingItemId, gapFillsByItemId, items]);
+  }, [activePeriodId, editingItemId, gapFillsByItemId, items, pendingCreate]);
   const totals = useMemo(() => {
     return items.reduce<Record<string, number>>((next, item) => {
       const key = item.metadata?.category ?? "Unassigned";
@@ -281,19 +297,16 @@ export function useSchedulePage(): SchedulePageViewModel {
     setDraftPlacements({});
     setPreview(null);
     setEditingItemId(null);
+    setPendingCreate(null);
   }, [activePeriodId]);
 
   const handleCreate = (request: SchedulerCreateRequest) => {
-    if (activePeriodId) {
-      createManualEventMutation.mutate({
-        periodId: activePeriodId,
-        day: request.day,
-        startMinutes: request.startMinutes,
-        endMinutes: request.endMinutes,
-        note: "New block",
-      });
+    if (!activePeriodId) {
       return;
     }
+
+    setEditingItemId(null);
+    setPendingCreate(request);
   };
 
   const handleCommit = (change: ScheduleChange) => {
@@ -354,6 +367,7 @@ export function useSchedulePage(): SchedulePageViewModel {
       return;
     }
 
+    setPendingCreate(null);
     setEditingItemId(item.id);
   };
 
@@ -421,9 +435,29 @@ export function useSchedulePage(): SchedulePageViewModel {
 
   const handleCloseEventEditor = () => {
     setEditingItemId(null);
+    setPendingCreate(null);
   };
 
   const handleSaveEventEdit = (values: ScheduleEventEditValues) => {
+    if (pendingCreate && activePeriodId) {
+      createManualEventMutation.mutate(
+        {
+          periodId: activePeriodId,
+          day: values.day,
+          startMinutes: values.startMinutes,
+          endMinutes: values.endMinutes,
+          categoryId: values.categoryId,
+          note: values.note,
+        },
+        {
+          onSuccess: () => {
+            setPendingCreate(null);
+          },
+        },
+      );
+      return;
+    }
+
     if (!editingItemId) {
       return;
     }

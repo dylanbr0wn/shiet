@@ -46,7 +46,7 @@ export function SchedulePage({ titlebarPaddingClass }: SchedulePageProps) {
       <EventEditDialog
         categories={schedule.categories}
         event={schedule.editingEvent}
-        isSaving={schedule.editEventPending}
+        isSaving={schedule.editEventPending || schedule.createPending}
         open={schedule.editingEvent !== null}
         onOpenChange={(open) => {
           if (!open) {
