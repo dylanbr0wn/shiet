@@ -39,10 +39,11 @@ type TzSegment struct {
 	IanaTz            string `json:"ianaTz"`
 }
 
-// Calendar is a Google calendar in the account-level selectable scope.
+// Calendar is a synced calendar source in the account-level selectable scope.
 type Calendar struct {
 	ID                int64  `json:"id"`
-	GoogleCalendarID  string `json:"googleCalendarId"`
+	Provider          string `json:"provider"`
+	ExternalID        string `json:"externalId"`
 	Name              string `json:"name"`
 	IsPrimary         bool   `json:"isPrimary"`
 	Selected          bool   `json:"selected"`
@@ -64,7 +65,8 @@ type Event struct {
 	ID               int64      `json:"id"`
 	PeriodID         int64      `json:"periodId"`
 	CalendarID       int64      `json:"calendarId"`
-	GoogleEventID    string     `json:"googleEventId"`
+	Provider         string     `json:"provider"`
+	ExternalID       string     `json:"externalId"`
 	InstanceID       string     `json:"instanceId,omitempty"`
 	RecurringEventID string     `json:"recurringEventId,omitempty"`
 	ICalUID          string     `json:"icalUid,omitempty"`
@@ -130,7 +132,8 @@ func toTzSegment(r sqlc.TzSegment) TzSegment {
 func toCalendar(r sqlc.Calendar) Calendar {
 	return Calendar{
 		ID:                r.ID,
-		GoogleCalendarID:  r.GoogleCalendarID,
+		Provider:          r.Provider,
+		ExternalID:        r.ExternalID,
 		Name:              r.Name,
 		IsPrimary:         r.IsPrimary != 0,
 		Selected:          r.Selected != 0,
@@ -143,7 +146,8 @@ func toEvent(r sqlc.Event) Event {
 		ID:               r.ID,
 		PeriodID:         r.PeriodID,
 		CalendarID:       r.CalendarID,
-		GoogleEventID:    r.GoogleEventID,
+		Provider:         r.Provider,
+		ExternalID:       r.ExternalID,
 		InstanceID:       r.InstanceID,
 		RecurringEventID: r.RecurringEventID,
 		ICalUID:          r.IcalUid,

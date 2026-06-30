@@ -133,9 +133,9 @@ submission**. Two concepts, separated: mutable `period` + immutable `submission`
 Schema sketch:
 ```
 period(id, start, end, cadence, anchor, target_hours_per_day, last_synced_at)
-event(id, period_id, google_event_id, instance_id, title, start, end,
+event(id, period_id, provider, external_id, instance_id, title, start, end,
       attendees, status, all_day, source_hash)          -- synced facts
-overlay(id, period_id, google_event_id, instance_id,
+overlay(id, period_id, provider, external_id, instance_id,
         category_id, resolved_overlap, note, kind)        -- user decisions
 gap_fill(id, period_id, day, start, end, category_id, source)  -- entries in uncovered intervals
 category(id, name, is_default_gap)                         -- user-defined, free-form

@@ -63,8 +63,9 @@ func tm(s string) *time.Time {
 // baseEvent is a timed, accepted event used as a building block.
 func (e *syncEnv) baseEvent() service.IncomingEvent {
 	return service.IncomingEvent{
-		CalendarID:    e.calID,
-		GoogleEventID: "evt-1",
+		CalendarID: e.calID,
+		Provider:   service.ProviderGoogle,
+		ExternalID: "evt-1",
 		Title:         "Standup",
 		Status:        "accepted",
 		Start:         tm("2026-06-02T09:00:00Z"),
@@ -113,7 +114,7 @@ func TestSync_MemoryAutoCategorizes(t *testing.T) {
 	}
 
 	o, err := e.q.GetOverlay(ctx, sqlc.GetOverlayParams{
-		PeriodID: e.periodID, GoogleEventID: "evt-1", InstanceID: "", Kind: "category",
+		PeriodID: e.periodID, Provider: service.ProviderGoogle, ExternalID: "evt-1", InstanceID: "", Kind: "category",
 	})
 	if err != nil {
 		t.Fatalf("expected memory overlay: %v", err)
@@ -192,7 +193,7 @@ func TestSync_NewEventInFilledGapFlags(t *testing.T) {
 	}
 
 	inc := e.baseEvent()
-	inc.GoogleEventID = "evt-overlap"
+	inc.ExternalID = "evt-overlap"
 	inc.Start = tm("2026-06-02T13:30:00Z")
 	inc.End = tm("2026-06-02T14:30:00Z") // overlaps the gap fill
 
@@ -215,7 +216,7 @@ func TestSync_DisappearedEvent(t *testing.T) {
 	// Two events; one will be categorized, one not.
 	a := e.baseEvent() // evt-1, will be categorized → kept + flagged
 	b := e.baseEvent()
-	b.GoogleEventID = "evt-2" // uncategorized → removed
+	b.ExternalID = "evt-2" // uncategorized → removed
 	if _, err := e.svc.SyncEvents(ctx, e.periodID, []service.IncomingEvent{a, b}); err != nil {
 		t.Fatal(err)
 	}
@@ -235,7 +236,7 @@ func TestSync_DisappearedEvent(t *testing.T) {
 	}
 	// The categorized event's fact is retained.
 	events, _ := e.svc.ListEvents(ctx, e.periodID)
-	if len(events) != 1 || events[0].GoogleEventID != "evt-1" {
+	if len(events) != 1 || events[0].ExternalID != "evt-1" {
 		t.Fatalf("categorized event should be retained, got %+v", events)
 	}
 }
@@ -245,11 +246,11 @@ func TestSync_AllDayAndTentativeFlags(t *testing.T) {
 	ctx := context.Background()
 
 	allDay := service.IncomingEvent{
-		CalendarID: e.calID, GoogleEventID: "evt-allday", Title: "Holiday",
+		CalendarID: e.calID, Provider: service.ProviderGoogle, ExternalID: "evt-allday", Title: "Holiday",
 		Status: "accepted", AllDay: true, StartDate: "2026-06-03", EndDate: "2026-06-04",
 	}
 	tentative := e.baseEvent()
-	tentative.GoogleEventID = "evt-tent"
+	tentative.ExternalID = "evt-tent"
 	tentative.Status = "tentative"
 
 	r, err := e.svc.SyncEvents(ctx, e.periodID, []service.IncomingEvent{allDay, tentative})
@@ -272,8 +273,9 @@ func TestSync_AllDayAndTentativeFlags(t *testing.T) {
 func mustOverlay(t *testing.T, e *syncEnv, gid string) {
 	t.Helper()
 	if _, err := e.q.UpsertOverlay(context.Background(), sqlc.UpsertOverlayParams{
-		PeriodID:      e.periodID,
-		GoogleEventID: gid,
+		PeriodID:   e.periodID,
+		Provider:   service.ProviderGoogle,
+		ExternalID: gid,
 		InstanceID:    "",
 		CategoryID:    sql.NullInt64{Int64: e.catID, Valid: true},
 		Kind:          "category",

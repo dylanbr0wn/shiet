@@ -22,7 +22,7 @@ type Querier interface {
 	DeletePeriod(ctx context.Context, id int64) error
 	DeleteTzSegment(ctx context.Context, id int64) error
 	ForgetMemory(ctx context.Context, matchKey string) error
-	GetCalendarByGoogleID(ctx context.Context, googleCalendarID string) (Calendar, error)
+	GetCalendarByProviderExternalID(ctx context.Context, arg GetCalendarByProviderExternalIDParams) (Calendar, error)
 	GetCategory(ctx context.Context, id int64) (Category, error)
 	GetDefaultGapCategory(ctx context.Context) (Category, error)
 	GetEvent(ctx context.Context, id int64) (Event, error)

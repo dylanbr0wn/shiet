@@ -20,21 +20,23 @@ func (q *Queries) DeleteOverlay(ctx context.Context, id int64) error {
 }
 
 const getOverlay = `-- name: GetOverlay :one
-SELECT id, period_id, google_event_id, instance_id, category_id, resolved_overlap, note, kind, created_at, updated_at FROM overlay
-WHERE period_id = ? AND google_event_id = ? AND instance_id = ? AND kind = ?
+SELECT id, period_id, provider, external_id, instance_id, category_id, resolved_overlap, note, kind, created_at, updated_at FROM overlay
+WHERE period_id = ? AND provider = ? AND external_id = ? AND instance_id = ? AND kind = ?
 `
 
 type GetOverlayParams struct {
-	PeriodID      int64  `json:"period_id"`
-	GoogleEventID string `json:"google_event_id"`
-	InstanceID    string `json:"instance_id"`
-	Kind          string `json:"kind"`
+	PeriodID   int64  `json:"period_id"`
+	Provider   string `json:"provider"`
+	ExternalID string `json:"external_id"`
+	InstanceID string `json:"instance_id"`
+	Kind       string `json:"kind"`
 }
 
 func (q *Queries) GetOverlay(ctx context.Context, arg GetOverlayParams) (Overlay, error) {
 	row := q.db.QueryRowContext(ctx, getOverlay,
 		arg.PeriodID,
-		arg.GoogleEventID,
+		arg.Provider,
+		arg.ExternalID,
 		arg.InstanceID,
 		arg.Kind,
 	)
@@ -42,7 +44,8 @@ func (q *Queries) GetOverlay(ctx context.Context, arg GetOverlayParams) (Overlay
 	err := row.Scan(
 		&i.ID,
 		&i.PeriodID,
-		&i.GoogleEventID,
+		&i.Provider,
+		&i.ExternalID,
 		&i.InstanceID,
 		&i.CategoryID,
 		&i.ResolvedOverlap,
@@ -55,7 +58,7 @@ func (q *Queries) GetOverlay(ctx context.Context, arg GetOverlayParams) (Overlay
 }
 
 const listOverlaysForPeriod = `-- name: ListOverlaysForPeriod :many
-SELECT id, period_id, google_event_id, instance_id, category_id, resolved_overlap, note, kind, created_at, updated_at FROM overlay WHERE period_id = ?
+SELECT id, period_id, provider, external_id, instance_id, category_id, resolved_overlap, note, kind, created_at, updated_at FROM overlay WHERE period_id = ?
 `
 
 func (q *Queries) ListOverlaysForPeriod(ctx context.Context, periodID int64) ([]Overlay, error) {
@@ -70,7 +73,8 @@ func (q *Queries) ListOverlaysForPeriod(ctx context.Context, periodID int64) ([]
 		if err := rows.Scan(
 			&i.ID,
 			&i.PeriodID,
-			&i.GoogleEventID,
+			&i.Provider,
+			&i.ExternalID,
 			&i.InstanceID,
 			&i.CategoryID,
 			&i.ResolvedOverlap,
@@ -94,19 +98,20 @@ func (q *Queries) ListOverlaysForPeriod(ctx context.Context, periodID int64) ([]
 
 const upsertOverlay = `-- name: UpsertOverlay :one
 INSERT INTO overlay (
-    period_id, google_event_id, instance_id, category_id, resolved_overlap, note, kind
-) VALUES (?, ?, ?, ?, ?, ?, ?)
-ON CONFLICT (period_id, google_event_id, instance_id, kind) DO UPDATE SET
+    period_id, provider, external_id, instance_id, category_id, resolved_overlap, note, kind
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+ON CONFLICT (period_id, provider, external_id, instance_id, kind) DO UPDATE SET
     category_id      = excluded.category_id,
     resolved_overlap = excluded.resolved_overlap,
     note             = excluded.note,
     updated_at       = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
-RETURNING id, period_id, google_event_id, instance_id, category_id, resolved_overlap, note, kind, created_at, updated_at
+RETURNING id, period_id, provider, external_id, instance_id, category_id, resolved_overlap, note, kind, created_at, updated_at
 `
 
 type UpsertOverlayParams struct {
 	PeriodID        int64          `json:"period_id"`
-	GoogleEventID   string         `json:"google_event_id"`
+	Provider        string         `json:"provider"`
+	ExternalID      string         `json:"external_id"`
 	InstanceID      string         `json:"instance_id"`
 	CategoryID      sql.NullInt64  `json:"category_id"`
 	ResolvedOverlap sql.NullString `json:"resolved_overlap"`
@@ -117,7 +122,8 @@ type UpsertOverlayParams struct {
 func (q *Queries) UpsertOverlay(ctx context.Context, arg UpsertOverlayParams) (Overlay, error) {
 	row := q.db.QueryRowContext(ctx, upsertOverlay,
 		arg.PeriodID,
-		arg.GoogleEventID,
+		arg.Provider,
+		arg.ExternalID,
 		arg.InstanceID,
 		arg.CategoryID,
 		arg.ResolvedOverlap,
@@ -128,7 +134,8 @@ func (q *Queries) UpsertOverlay(ctx context.Context, arg UpsertOverlayParams) (O
 	err := row.Scan(
 		&i.ID,
 		&i.PeriodID,
-		&i.GoogleEventID,
+		&i.Provider,
+		&i.ExternalID,
 		&i.InstanceID,
 		&i.CategoryID,
 		&i.ResolvedOverlap,

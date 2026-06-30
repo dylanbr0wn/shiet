@@ -6,7 +6,8 @@ export interface Category {
 
 export interface Calendar {
   id: number;
-  googleCalendarId: string;
+  provider: string;
+  externalId: string;
   name: string;
   isPrimary: boolean;
   selected: boolean;
@@ -27,7 +28,8 @@ export interface Event {
   id: number;
   periodId: number;
   calendarId: number;
-  googleEventId: string;
+  provider: string;
+  externalId: string;
   instanceId?: string;
   recurringEventId?: string;
   icalUid?: string;

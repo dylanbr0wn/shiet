@@ -39,7 +39,7 @@ func newGapEnv(t *testing.T, start, end, iana string, target float64) *gapEnv {
 		t.Fatalf("seed: %v", err)
 	}
 	q := sqlc.New(conn)
-	cal, err := q.UpsertCalendar(ctx, sqlc.UpsertCalendarParams{GoogleCalendarID: "primary", Name: "Primary", IsPrimary: 1})
+	cal, err := q.UpsertCalendar(ctx, sqlc.UpsertCalendarParams{Provider: service.ProviderGoogle, ExternalID: "primary", Name: "Primary", IsPrimary: 1})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -59,9 +59,10 @@ func newGapEnv(t *testing.T, start, end, iana string, target float64) *gapEnv {
 func (e *gapEnv) addEvent(t *testing.T, gid string, startUTC, endUTC string) {
 	t.Helper()
 	if _, err := e.q.UpsertEvent(context.Background(), sqlc.UpsertEventParams{
-		PeriodID:      e.periodID,
-		CalendarID:    e.calID,
-		GoogleEventID: gid,
+		PeriodID:   e.periodID,
+		CalendarID: e.calID,
+		Provider:   service.ProviderGoogle,
+		ExternalID: gid,
 		Title:         gid,
 		Status:        "accepted",
 		Attendees:     "[]",
@@ -163,7 +164,7 @@ func TestGaps_GapFillCounts(t *testing.T) {
 func TestGaps_AllDayEventDoesNotOccupy(t *testing.T) {
 	e := newGapEnv(t, "2026-06-01", "2026-06-01", "America/Toronto", 8)
 	if _, err := e.q.UpsertEvent(context.Background(), sqlc.UpsertEventParams{
-		PeriodID: e.periodID, CalendarID: e.calID, GoogleEventID: "holiday", Title: "Holiday",
+		PeriodID: e.periodID, CalendarID: e.calID, Provider: service.ProviderGoogle, ExternalID: "holiday", Title: "Holiday",
 		Status: "accepted", Attendees: "[]", AllDay: 1,
 		StartDate:  sql.NullString{String: "2026-06-01", Valid: true},
 		EndDate:    sql.NullString{String: "2026-06-02", Valid: true},
@@ -180,7 +181,7 @@ func TestGaps_AllDayEventDoesNotOccupy(t *testing.T) {
 func TestGaps_DeclinedEventExcluded(t *testing.T) {
 	e := newGapEnv(t, "2026-06-01", "2026-06-01", "America/Toronto", 8)
 	if _, err := e.q.UpsertEvent(context.Background(), sqlc.UpsertEventParams{
-		PeriodID: e.periodID, CalendarID: e.calID, GoogleEventID: "decl", Title: "Declined",
+		PeriodID: e.periodID, CalendarID: e.calID, Provider: service.ProviderGoogle, ExternalID: "decl", Title: "Declined",
 		Status: "declined", Attendees: "[]",
 		StartUtc:   sql.NullString{String: "2026-06-01T15:00:00Z", Valid: true},
 		EndUtc:     sql.NullString{String: "2026-06-01T16:00:00Z", Valid: true},

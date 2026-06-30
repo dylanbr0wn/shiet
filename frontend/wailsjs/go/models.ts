@@ -41,7 +41,8 @@ export namespace service {
 	}
 	export class Calendar {
 	    id: number;
-	    googleCalendarId: string;
+	    provider: string;
+	    externalId: string;
 	    name: string;
 	    isPrimary: boolean;
 	    selected: boolean;
@@ -54,7 +55,8 @@ export namespace service {
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.id = source["id"];
-	        this.googleCalendarId = source["googleCalendarId"];
+	        this.provider = source["provider"];
+	        this.externalId = source["externalId"];
 	        this.name = source["name"];
 	        this.isPrimary = source["isPrimary"];
 	        this.selected = source["selected"];
@@ -163,7 +165,8 @@ export namespace service {
 	    id: number;
 	    periodId: number;
 	    calendarId: number;
-	    googleEventId: string;
+	    provider: string;
+	    externalId: string;
 	    instanceId?: string;
 	    recurringEventId?: string;
 	    icalUid?: string;
@@ -192,7 +195,8 @@ export namespace service {
 	        this.id = source["id"];
 	        this.periodId = source["periodId"];
 	        this.calendarId = source["calendarId"];
-	        this.googleEventId = source["googleEventId"];
+	        this.provider = source["provider"];
+	        this.externalId = source["externalId"];
 	        this.instanceId = source["instanceId"];
 	        this.recurringEventId = source["recurringEventId"];
 	        this.icalUid = source["icalUid"];
@@ -257,7 +261,8 @@ export namespace service {
 	}
 	export class IncomingEvent {
 	    CalendarID: number;
-	    GoogleEventID: string;
+	    Provider: string;
+	    ExternalID: string;
 	    InstanceID: string;
 	    RecurringEventID: string;
 	    ICalUID: string;
@@ -283,7 +288,8 @@ export namespace service {
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.CalendarID = source["CalendarID"];
-	        this.GoogleEventID = source["GoogleEventID"];
+	        this.Provider = source["Provider"];
+	        this.ExternalID = source["ExternalID"];
 	        this.InstanceID = source["InstanceID"];
 	        this.RecurringEventID = source["RecurringEventID"];
 	        this.ICalUID = source["ICalUID"];

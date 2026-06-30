@@ -88,9 +88,10 @@ func Dev(ctx context.Context, conn *sql.DB) error {
 	q := sqlc.New(conn)
 
 	cal, err := q.UpsertCalendar(ctx, sqlc.UpsertCalendarParams{
-		GoogleCalendarID: "primary",
-		Name:             "Primary",
-		IsPrimary:        1,
+		Provider:   "google",
+		ExternalID: "primary",
+		Name:       "Primary",
+		IsPrimary:  1,
 	})
 	if err != nil {
 		return fmt.Errorf("seed calendar: %w", err)
@@ -143,28 +144,28 @@ func seedDevEvents(ctx context.Context, q *sqlc.Queries, periodID, calendarID in
 	}
 
 	events := []struct {
-		googleID string
+		externalID string
 		title    string
 		day      string
 		startMin int
 		endMin   int
 	}{
 		{
-			googleID: "dev-sprint-planning",
+			externalID: "dev-sprint-planning",
 			title:    "Sprint planning",
 			day:      "2026-06-02",
 			startMin: 8*60 + 30,
 			endMin:   10 * 60,
 		},
 		{
-			googleID: "dev-design-review",
+			externalID: "dev-design-review",
 			title:    "Design review",
 			day:      "2026-06-02",
 			startMin: 9*60 + 15,
 			endMin:   10*60 + 30,
 		},
 		{
-			googleID: "dev-vendor-call",
+			externalID: "dev-vendor-call",
 			title:    "Vendor call",
 			day:      "2026-06-04",
 			startMin: 7 * 60,
@@ -176,10 +177,11 @@ func seedDevEvents(ctx context.Context, q *sqlc.Queries, periodID, calendarID in
 		start := localMinute(event.day, event.startMin, loc)
 		end := localMinute(event.day, event.endMin, loc)
 		if _, err := q.UpsertEvent(ctx, sqlc.UpsertEventParams{
-			PeriodID:      periodID,
-			CalendarID:    calendarID,
-			GoogleEventID: event.googleID,
-			IcalUid:       event.googleID + "@clockr.dev",
+			PeriodID:   periodID,
+			CalendarID: calendarID,
+			Provider:   "google",
+			ExternalID: event.externalID,
+			IcalUid:    event.externalID + "@clockr.dev",
 			Title:         event.title,
 			Attendees:     "[]",
 			Status:        "accepted",
@@ -192,9 +194,9 @@ func seedDevEvents(ctx context.Context, q *sqlc.Queries, periodID, calendarID in
 				Valid:  true,
 			},
 			OriginalTz: "America/Toronto",
-			SourceHash: "dev-seed-v1:" + event.googleID,
+			SourceHash: "dev-seed-v1:" + event.externalID,
 		}); err != nil {
-			return fmt.Errorf("seed dev event %q: %w", event.googleID, err)
+			return fmt.Errorf("seed dev event %q: %w", event.externalID, err)
 		}
 	}
 

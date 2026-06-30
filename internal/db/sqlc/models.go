@@ -16,7 +16,8 @@ type AppSetting struct {
 
 type Calendar struct {
 	ID                int64         `json:"id"`
-	GoogleCalendarID  string        `json:"google_calendar_id"`
+	Provider          string        `json:"provider"`
+	ExternalID        string        `json:"external_id"`
 	Name              string        `json:"name"`
 	IsPrimary         int64         `json:"is_primary"`
 	Selected          int64         `json:"selected"`
@@ -35,7 +36,8 @@ type Event struct {
 	ID               int64          `json:"id"`
 	PeriodID         int64          `json:"period_id"`
 	CalendarID       int64          `json:"calendar_id"`
-	GoogleEventID    string         `json:"google_event_id"`
+	Provider         string         `json:"provider"`
+	ExternalID       string         `json:"external_id"`
 	InstanceID       string         `json:"instance_id"`
 	RecurringEventID string         `json:"recurring_event_id"`
 	IcalUid          string         `json:"ical_uid"`
@@ -80,7 +82,8 @@ type Memory struct {
 type Overlay struct {
 	ID              int64          `json:"id"`
 	PeriodID        int64          `json:"period_id"`
-	GoogleEventID   string         `json:"google_event_id"`
+	Provider        string         `json:"provider"`
+	ExternalID      string         `json:"external_id"`
 	InstanceID      string         `json:"instance_id"`
 	CategoryID      sql.NullInt64  `json:"category_id"`
 	ResolvedOverlap sql.NullString `json:"resolved_overlap"`
