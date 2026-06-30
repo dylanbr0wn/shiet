@@ -36,6 +36,8 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { useSetSetting, useSetting } from "@/lib/api";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
+import { AIModelSettings } from "./AIModelSettings";
+import { SettingBlock } from "./SettingBlock";
 
 type ThemeSetting = "system" | "light" | "dark";
 type PeriodCadence = "weekly" | "bi-weekly" | "semi-monthly" | "monthly";
@@ -54,7 +56,7 @@ const sections: Array<{
   { id: "general", label: "General", icon: Settings, ready: true },
   { id: "calendars", label: "Calendars", icon: CalendarDays, ready: false },
   { id: "categories", label: "Categories", icon: Tags, ready: false },
-  { id: "ai", label: "AI Model", icon: Sparkles, ready: false },
+  { id: "ai", label: "AI Model", icon: Sparkles, ready: true },
   { id: "privacy", label: "Privacy", icon: Shield, ready: false },
   { id: "export", label: "Export", icon: Download, ready: false },
 ];
@@ -196,26 +198,6 @@ function EditableTimeSetting({
         onChange={(event) => setDraft(event.target.value)}
       />
     </div>
-  );
-}
-
-function SettingBlock({
-  title,
-  description,
-  children,
-}: {
-  title: string;
-  description: string;
-  children: ReactNode;
-}) {
-  return (
-    <section className="space-y-3 border-b border-border pb-5 last:border-b-0 last:pb-0">
-      <div>
-        <h3 className="text-sm font-medium">{title}</h3>
-        <p className="mt-1 text-sm text-muted-foreground">{description}</p>
-      </div>
-      {children}
-    </section>
   );
 }
 
@@ -417,6 +399,9 @@ export function SettingsDialog({ children }: SettingsDialogProps) {
                   </div>
                 </SettingBlock>
               </div>
+            </TabsContent>
+            <TabsContent value="ai" className="min-h-0 overflow-auto p-5">
+              <AIModelSettings />
             </TabsContent>
             <DialogFooter className="border-t border-border px-5 py-3">
               <div className="flex min-h-8 w-full items-center justify-between gap-3">

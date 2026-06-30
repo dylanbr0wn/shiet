@@ -1,5 +1,8 @@
 import * as generatedApp from "../../../wailsjs/go/main/App";
 import type {
+  AIClassification,
+  AIEndpoint,
+  AIValidationResult,
   Calendar,
   Category,
   DayTimeline,
@@ -15,11 +18,14 @@ import type {
 } from "./types";
 
 interface ClockrApp {
+  ClassifyAIEndpoint(baseURL: string): Promise<AIClassification>;
   ComputeGaps(periodId: number): Promise<DayTimeline[]>;
   CreateManualEvent(input: ManualEventInput): Promise<ManualEventResult>;
   DeleteManualEvent(input: ManualEventDeleteInput): Promise<ManualEventResult>;
+  DiscoverLocalAIEndpoints(): Promise<AIEndpoint[]>;
   EnsureCurrentPeriod(today: string, ianaTz: string): Promise<Period>;
   GetSetting(key: string): Promise<string>;
+  ListAIModels(baseURL: string, apiKey: string): Promise<string[]>;
   ListCalendars(): Promise<Calendar[]>;
   ListCategories(): Promise<Category[]>;
   ListEvents(periodId: number): Promise<Event[]>;
@@ -28,8 +34,14 @@ interface ClockrApp {
   ListPeriods(): Promise<Period[]>;
   ListSelectedCalendars(): Promise<Calendar[]>;
   ListTzSegments(periodId: number): Promise<TzSegment[]>;
+  SaveAIConfig(baseURL: string, model: string): Promise<void>;
   SetSetting(key: string, value: string): Promise<void>;
   UpdateManualEvent(input: ManualEventUpdateInput): Promise<ManualEventResult>;
+  ValidateAIConfig(
+    baseURL: string,
+    apiKey: string,
+    model: string,
+  ): Promise<AIValidationResult>;
 }
 
 declare global {
@@ -157,4 +169,46 @@ export function setSetting(key: string, value: string) {
   }
 
   return writeToBackend(() => appBackend.SetSetting(key, value));
+}
+
+export function discoverLocalAIEndpoints() {
+  return readFromBackend<AIEndpoint[]>([], () =>
+    appBackend.DiscoverLocalAIEndpoints(),
+  );
+}
+
+export async function classifyAIEndpoint(baseURL: string) {
+  if (!isClockrAppAvailable()) {
+    const local =
+      baseURL.includes("localhost") ||
+      baseURL.includes("127.0.0.1") ||
+      baseURL.includes(":11434") ||
+      baseURL.includes(":1234");
+    return {
+      local,
+      verdict: local
+        ? "Private · on-device"
+        : "Cloud · data may leave your device",
+    } satisfies AIClassification;
+  }
+
+  return appBackend.ClassifyAIEndpoint(baseURL);
+}
+
+export function listAIModels(baseURL: string, apiKey: string) {
+  return writeToBackend(() => appBackend.ListAIModels(baseURL, apiKey));
+}
+
+export function validateAIConfig(
+  baseURL: string,
+  apiKey: string,
+  model: string,
+) {
+  return writeToBackend(() =>
+    appBackend.ValidateAIConfig(baseURL, apiKey, model),
+  );
+}
+
+export function saveAIConfig(baseURL: string, model: string) {
+  return writeToBackend(() => appBackend.SaveAIConfig(baseURL, model));
 }

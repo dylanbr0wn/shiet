@@ -1,10 +1,13 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  classifyAIEndpoint,
   computeGaps,
   createManualEvent,
   deleteManualEvent,
+  discoverLocalAIEndpoints,
   ensureCurrentPeriod,
   getSetting,
+  listAIModels,
   listCalendars,
   listCategories,
   listEvents,
@@ -13,8 +16,10 @@ import {
   listPeriods,
   listSelectedCalendars,
   listTzSegments,
+  saveAIConfig,
   setSetting,
   updateManualEvent,
+  validateAIConfig,
 } from "./clockrService";
 
 export const clockrQueryKeys = {
@@ -39,6 +44,9 @@ export const clockrQueryKeys = {
   selectedCalendars: () =>
     [...clockrQueryKeys.calendars(), "selected"] as const,
   setting: (key: string) => [...clockrQueryKeys.all, "settings", key] as const,
+  aiDiscovery: () => [...clockrQueryKeys.all, "ai", "discovery"] as const,
+  aiClassification: (baseURL: string) =>
+    [...clockrQueryKeys.all, "ai", "classification", baseURL] as const,
 };
 
 export function usePeriods() {
@@ -190,6 +198,71 @@ export function useSetSetting() {
       void queryClient.invalidateQueries({
         queryKey: clockrQueryKeys.setting(key),
       });
+    },
+  });
+}
+
+export function useDiscoverLocalAIEndpoints() {
+  return useQuery({
+    queryKey: clockrQueryKeys.aiDiscovery(),
+    queryFn: discoverLocalAIEndpoints,
+  });
+}
+
+export function useClassifyAIEndpoint(baseURL: string) {
+  return useQuery({
+    enabled: baseURL.trim().length > 0,
+    queryKey: clockrQueryKeys.aiClassification(baseURL),
+    queryFn: () => classifyAIEndpoint(baseURL),
+  });
+}
+
+export function useListAIModels() {
+  return useMutation({
+    mutationFn: ({
+      baseURL,
+      apiKey,
+    }: {
+      baseURL: string;
+      apiKey: string;
+    }) => listAIModels(baseURL, apiKey),
+  });
+}
+
+export function useValidateAIConfig() {
+  return useMutation({
+    mutationFn: ({
+      baseURL,
+      apiKey,
+      model,
+    }: {
+      baseURL: string;
+      apiKey: string;
+      model: string;
+    }) => validateAIConfig(baseURL, apiKey, model),
+  });
+}
+
+export function useSaveAIConfig() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({
+      baseURL,
+      model,
+    }: {
+      baseURL: string;
+      model: string;
+    }) => saveAIConfig(baseURL, model),
+    onSuccess: (_result, { baseURL, model }) => {
+      queryClient.setQueryData(
+        clockrQueryKeys.setting("ai.base_url"),
+        JSON.stringify(baseURL),
+      );
+      queryClient.setQueryData(
+        clockrQueryKeys.setting("ai.model"),
+        JSON.stringify(model),
+      );
     },
   });
 }
