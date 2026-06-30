@@ -14,11 +14,12 @@ SELECT * FROM event WHERE period_id = ? AND ical_uid = ? AND ical_uid <> '';
 -- Re-sync entry point: insert a fact, or update mutable synced fields on re-pull.
 -- Never touches user decisions (those live in overlay), and preserves `active`.
 INSERT INTO event (
-    period_id, calendar_id, google_event_id, instance_id, recurring_event_id,
+    period_id, calendar_id, provider, external_id, instance_id, recurring_event_id,
     ical_uid, title, description, location, organizer, attendees, status,
     all_day, start_utc, end_utc, start_date, end_date, original_tz, source_hash
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-ON CONFLICT (period_id, calendar_id, google_event_id, instance_id) DO UPDATE SET
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+ON CONFLICT (period_id, calendar_id, external_id, instance_id) DO UPDATE SET
+    provider           = excluded.provider,
     recurring_event_id = excluded.recurring_event_id,
     ical_uid           = excluded.ical_uid,
     title              = excluded.title,

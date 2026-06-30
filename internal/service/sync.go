@@ -21,7 +21,8 @@ import (
 // EndDate (date-only YYYY-MM-DD) are set instead.
 type IncomingEvent struct {
 	CalendarID       int64
-	GoogleEventID    string
+	Provider         string
+	ExternalID       string
 	InstanceID       string
 	RecurringEventID string
 	ICalUID          string
@@ -84,7 +85,7 @@ func (s *Service) SyncEvents(ctx context.Context, periodID int64, incoming []Inc
 	}
 	baseByKey := make(map[string]sqlc.Event, len(base))
 	for _, e := range base {
-		baseByKey[eventKey(e.CalendarID, e.GoogleEventID, e.InstanceID)] = e
+		baseByKey[eventKey(e.CalendarID, e.ExternalID, e.InstanceID)] = e
 	}
 
 	gaps, err := q.ListGapFillsForPeriod(ctx, periodID)
@@ -94,7 +95,7 @@ func (s *Service) SyncEvents(ctx context.Context, periodID int64, incoming []Inc
 
 	seen := make(map[string]struct{}, len(incoming))
 	for _, inc := range incoming {
-		key := eventKey(inc.CalendarID, inc.GoogleEventID, inc.InstanceID)
+		key := eventKey(inc.CalendarID, inc.ExternalID, inc.InstanceID)
 		seen[key] = struct{}{}
 
 		params, hash := upsertParams(periodID, inc)
@@ -103,7 +104,7 @@ func (s *Service) SyncEvents(ctx context.Context, periodID int64, incoming []Inc
 		if !exists {
 			ev, err := q.UpsertEvent(ctx, params)
 			if err != nil {
-				return res, fmt.Errorf("insert event %s: %w", inc.GoogleEventID, err)
+				return res, fmt.Errorf("insert event %s: %w", inc.ExternalID, err)
 			}
 			res.Added++
 			if err := s.handleNewEvent(ctx, q, periodID, inc, ev.ID, gaps, &res); err != nil {
@@ -120,7 +121,7 @@ func (s *Service) SyncEvents(ctx context.Context, periodID int64, incoming []Inc
 		// Changed: update the fact (overlay untouched), then classify.
 		ev, err := q.UpsertEvent(ctx, params)
 		if err != nil {
-			return res, fmt.Errorf("update event %s: %w", inc.GoogleEventID, err)
+			return res, fmt.Errorf("update event %s: %w", inc.ExternalID, err)
 		}
 		res.Updated++
 		if err := s.handleChangedEvent(ctx, q, periodID, ev.ID, ex, inc, &res); err != nil {
@@ -130,10 +131,10 @@ func (s *Service) SyncEvents(ctx context.Context, periodID int64, incoming []Inc
 
 	// Events that vanished from the pull.
 	for _, e := range base {
-		if _, ok := seen[eventKey(e.CalendarID, e.GoogleEventID, e.InstanceID)]; ok {
+		if _, ok := seen[eventKey(e.CalendarID, e.ExternalID, e.InstanceID)]; ok {
 			continue
 		}
-		categorized, err := hasCategory(ctx, q, periodID, e.GoogleEventID, e.InstanceID)
+		categorized, err := hasCategory(ctx, q, periodID, e.Provider, e.ExternalID, e.InstanceID)
 		if err != nil {
 			return res, err
 		}
@@ -189,7 +190,7 @@ func (s *Service) handleNewEvent(ctx context.Context, q *sqlc.Queries, periodID 
 // handleChangedEvent flags conflicts arising from a material change. Time-only
 // and other non-title changes apply silently (category describes what, not when).
 func (s *Service) handleChangedEvent(ctx context.Context, q *sqlc.Queries, periodID, eventID int64, ex sqlc.Event, inc IncomingEvent, res *SyncResult) error {
-	categorized, err := hasCategory(ctx, q, periodID, inc.GoogleEventID, inc.InstanceID)
+	categorized, err := hasCategory(ctx, q, periodID, inc.Provider, inc.ExternalID, inc.InstanceID)
 	if err != nil {
 		return err
 	}
@@ -225,11 +226,12 @@ func (s *Service) applyMemory(ctx context.Context, q *sqlc.Queries, periodID int
 		return fmt.Errorf("memory lookup: %w", err)
 	}
 	if _, err := q.UpsertOverlay(ctx, sqlc.UpsertOverlayParams{
-		PeriodID:      periodID,
-		GoogleEventID: inc.GoogleEventID,
-		InstanceID:    inc.InstanceID,
-		CategoryID:    sql.NullInt64{Int64: m.CategoryID, Valid: true},
-		Kind:          overlayKindCategory,
+		PeriodID:   periodID,
+		Provider:   inc.Provider,
+		ExternalID: inc.ExternalID,
+		InstanceID: inc.InstanceID,
+		CategoryID: sql.NullInt64{Int64: m.CategoryID, Valid: true},
+		Kind:       overlayKindCategory,
 	}); err != nil {
 		return fmt.Errorf("apply memory overlay: %w", err)
 	}
@@ -238,18 +240,19 @@ func (s *Service) applyMemory(ctx context.Context, q *sqlc.Queries, periodID int
 
 // ── helpers ───────────────────────────────────────────────────────────
 
-func eventKey(calendarID int64, googleEventID, instanceID string) string {
-	return fmt.Sprintf("%d|%s|%s", calendarID, googleEventID, instanceID)
+func eventKey(calendarID int64, externalID, instanceID string) string {
+	return fmt.Sprintf("%d|%s|%s", calendarID, externalID, instanceID)
 }
 
 // hasCategory reports whether a category overlay (with a non-null category)
 // exists for an event occurrence.
-func hasCategory(ctx context.Context, q *sqlc.Queries, periodID int64, gid, instanceID string) (bool, error) {
+func hasCategory(ctx context.Context, q *sqlc.Queries, periodID int64, provider, externalID, instanceID string) (bool, error) {
 	o, err := q.GetOverlay(ctx, sqlc.GetOverlayParams{
-		PeriodID:      periodID,
-		GoogleEventID: gid,
-		InstanceID:    instanceID,
-		Kind:          overlayKindCategory,
+		PeriodID:   periodID,
+		Provider:   provider,
+		ExternalID: externalID,
+		InstanceID: instanceID,
+		Kind:       overlayKindCategory,
 	})
 	if errors.Is(err, sql.ErrNoRows) {
 		return false, nil
@@ -318,7 +321,8 @@ func upsertParams(periodID int64, inc IncomingEvent) (sqlc.UpsertEventParams, st
 	p := sqlc.UpsertEventParams{
 		PeriodID:         periodID,
 		CalendarID:       inc.CalendarID,
-		GoogleEventID:    inc.GoogleEventID,
+		Provider:         inc.Provider,
+		ExternalID:       inc.ExternalID,
 		InstanceID:       inc.InstanceID,
 		RecurringEventID: inc.RecurringEventID,
 		IcalUid:          inc.ICalUID,
@@ -343,8 +347,8 @@ func upsertParams(periodID int64, inc IncomingEvent) (sqlc.UpsertEventParams, st
 // cheaply. Excludes period/calendar (identity) and the hash itself.
 func sourceHash(p sqlc.UpsertEventParams) string {
 	h := sha256.New()
-	fmt.Fprintf(h, "%s\x00%s\x00%s\x00%s\x00%s\x00%s\x00%s\x00%s\x00%s\x00%d\x00%s\x00%s\x00%s\x00%s\x00%s",
-		p.GoogleEventID, p.InstanceID, p.RecurringEventID, p.IcalUid,
+	fmt.Fprintf(h, "%s\x00%s\x00%s\x00%s\x00%s\x00%s\x00%s\x00%s\x00%s\x00%s\x00%d\x00%s\x00%s\x00%s\x00%s\x00%s",
+		p.Provider, p.ExternalID, p.InstanceID, p.RecurringEventID, p.IcalUid,
 		p.Title, p.Description, p.Location, p.Organizer, p.Attendees,
 		p.AllDay, p.StartUtc.String, p.EndUtc.String, p.StartDate.String, p.EndDate.String, p.OriginalTz)
 	return hex.EncodeToString(h.Sum(nil))

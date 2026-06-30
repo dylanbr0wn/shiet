@@ -10,16 +10,22 @@ import (
 	"database/sql"
 )
 
-const getCalendarByGoogleID = `-- name: GetCalendarByGoogleID :one
-SELECT id, google_calendar_id, name, is_primary, selected, default_category_id, created_at FROM calendar WHERE google_calendar_id = ?
+const getCalendarByProviderExternalID = `-- name: GetCalendarByProviderExternalID :one
+SELECT id, provider, external_id, name, is_primary, selected, default_category_id, created_at FROM calendar WHERE provider = ? AND external_id = ?
 `
 
-func (q *Queries) GetCalendarByGoogleID(ctx context.Context, googleCalendarID string) (Calendar, error) {
-	row := q.db.QueryRowContext(ctx, getCalendarByGoogleID, googleCalendarID)
+type GetCalendarByProviderExternalIDParams struct {
+	Provider   string `json:"provider"`
+	ExternalID string `json:"external_id"`
+}
+
+func (q *Queries) GetCalendarByProviderExternalID(ctx context.Context, arg GetCalendarByProviderExternalIDParams) (Calendar, error) {
+	row := q.db.QueryRowContext(ctx, getCalendarByProviderExternalID, arg.Provider, arg.ExternalID)
 	var i Calendar
 	err := row.Scan(
 		&i.ID,
-		&i.GoogleCalendarID,
+		&i.Provider,
+		&i.ExternalID,
 		&i.Name,
 		&i.IsPrimary,
 		&i.Selected,
@@ -30,7 +36,7 @@ func (q *Queries) GetCalendarByGoogleID(ctx context.Context, googleCalendarID st
 }
 
 const listCalendars = `-- name: ListCalendars :many
-SELECT id, google_calendar_id, name, is_primary, selected, default_category_id, created_at FROM calendar ORDER BY is_primary DESC, name
+SELECT id, provider, external_id, name, is_primary, selected, default_category_id, created_at FROM calendar ORDER BY is_primary DESC, name
 `
 
 func (q *Queries) ListCalendars(ctx context.Context) ([]Calendar, error) {
@@ -44,7 +50,8 @@ func (q *Queries) ListCalendars(ctx context.Context) ([]Calendar, error) {
 		var i Calendar
 		if err := rows.Scan(
 			&i.ID,
-			&i.GoogleCalendarID,
+			&i.Provider,
+			&i.ExternalID,
 			&i.Name,
 			&i.IsPrimary,
 			&i.Selected,
@@ -65,7 +72,7 @@ func (q *Queries) ListCalendars(ctx context.Context) ([]Calendar, error) {
 }
 
 const listSelectedCalendars = `-- name: ListSelectedCalendars :many
-SELECT id, google_calendar_id, name, is_primary, selected, default_category_id, created_at FROM calendar WHERE selected = 1 ORDER BY is_primary DESC, name
+SELECT id, provider, external_id, name, is_primary, selected, default_category_id, created_at FROM calendar WHERE selected = 1 ORDER BY is_primary DESC, name
 `
 
 func (q *Queries) ListSelectedCalendars(ctx context.Context) ([]Calendar, error) {
@@ -79,7 +86,8 @@ func (q *Queries) ListSelectedCalendars(ctx context.Context) ([]Calendar, error)
 		var i Calendar
 		if err := rows.Scan(
 			&i.ID,
-			&i.GoogleCalendarID,
+			&i.Provider,
+			&i.ExternalID,
 			&i.Name,
 			&i.IsPrimary,
 			&i.Selected,
@@ -128,26 +136,33 @@ func (q *Queries) SetCalendarSelected(ctx context.Context, arg SetCalendarSelect
 }
 
 const upsertCalendar = `-- name: UpsertCalendar :one
-INSERT INTO calendar (google_calendar_id, name, is_primary)
-VALUES (?, ?, ?)
-ON CONFLICT (google_calendar_id) DO UPDATE SET
+INSERT INTO calendar (provider, external_id, name, is_primary)
+VALUES (?, ?, ?, ?)
+ON CONFLICT (provider, external_id) DO UPDATE SET
     name = excluded.name,
     is_primary = excluded.is_primary
-RETURNING id, google_calendar_id, name, is_primary, selected, default_category_id, created_at
+RETURNING id, provider, external_id, name, is_primary, selected, default_category_id, created_at
 `
 
 type UpsertCalendarParams struct {
-	GoogleCalendarID string `json:"google_calendar_id"`
-	Name             string `json:"name"`
-	IsPrimary        int64  `json:"is_primary"`
+	Provider   string `json:"provider"`
+	ExternalID string `json:"external_id"`
+	Name       string `json:"name"`
+	IsPrimary  int64  `json:"is_primary"`
 }
 
 func (q *Queries) UpsertCalendar(ctx context.Context, arg UpsertCalendarParams) (Calendar, error) {
-	row := q.db.QueryRowContext(ctx, upsertCalendar, arg.GoogleCalendarID, arg.Name, arg.IsPrimary)
+	row := q.db.QueryRowContext(ctx, upsertCalendar,
+		arg.Provider,
+		arg.ExternalID,
+		arg.Name,
+		arg.IsPrimary,
+	)
 	var i Calendar
 	err := row.Scan(
 		&i.ID,
-		&i.GoogleCalendarID,
+		&i.Provider,
+		&i.ExternalID,
 		&i.Name,
 		&i.IsPrimary,
 		&i.Selected,

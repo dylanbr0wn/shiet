@@ -20,7 +20,7 @@ func (q *Queries) DeleteEvent(ctx context.Context, id int64) error {
 }
 
 const getEvent = `-- name: GetEvent :one
-SELECT id, period_id, calendar_id, google_event_id, instance_id, recurring_event_id, ical_uid, title, description, location, organizer, attendees, status, all_day, start_utc, end_utc, start_date, end_date, original_tz, active, source_hash, created_at, updated_at FROM event WHERE id = ?
+SELECT id, period_id, calendar_id, provider, external_id, instance_id, recurring_event_id, ical_uid, title, description, location, organizer, attendees, status, all_day, start_utc, end_utc, start_date, end_date, original_tz, active, source_hash, created_at, updated_at FROM event WHERE id = ?
 `
 
 func (q *Queries) GetEvent(ctx context.Context, id int64) (Event, error) {
@@ -30,7 +30,8 @@ func (q *Queries) GetEvent(ctx context.Context, id int64) (Event, error) {
 		&i.ID,
 		&i.PeriodID,
 		&i.CalendarID,
-		&i.GoogleEventID,
+		&i.Provider,
+		&i.ExternalID,
 		&i.InstanceID,
 		&i.RecurringEventID,
 		&i.IcalUid,
@@ -55,7 +56,7 @@ func (q *Queries) GetEvent(ctx context.Context, id int64) (Event, error) {
 }
 
 const listAllEventsForPeriod = `-- name: ListAllEventsForPeriod :many
-SELECT id, period_id, calendar_id, google_event_id, instance_id, recurring_event_id, ical_uid, title, description, location, organizer, attendees, status, all_day, start_utc, end_utc, start_date, end_date, original_tz, active, source_hash, created_at, updated_at FROM event WHERE period_id = ? ORDER BY start_utc, start_date
+SELECT id, period_id, calendar_id, provider, external_id, instance_id, recurring_event_id, ical_uid, title, description, location, organizer, attendees, status, all_day, start_utc, end_utc, start_date, end_date, original_tz, active, source_hash, created_at, updated_at FROM event WHERE period_id = ? ORDER BY start_utc, start_date
 `
 
 func (q *Queries) ListAllEventsForPeriod(ctx context.Context, periodID int64) ([]Event, error) {
@@ -71,7 +72,8 @@ func (q *Queries) ListAllEventsForPeriod(ctx context.Context, periodID int64) ([
 			&i.ID,
 			&i.PeriodID,
 			&i.CalendarID,
-			&i.GoogleEventID,
+			&i.Provider,
+			&i.ExternalID,
 			&i.InstanceID,
 			&i.RecurringEventID,
 			&i.IcalUid,
@@ -106,7 +108,7 @@ func (q *Queries) ListAllEventsForPeriod(ctx context.Context, periodID int64) ([
 }
 
 const listEventsByIcalUID = `-- name: ListEventsByIcalUID :many
-SELECT id, period_id, calendar_id, google_event_id, instance_id, recurring_event_id, ical_uid, title, description, location, organizer, attendees, status, all_day, start_utc, end_utc, start_date, end_date, original_tz, active, source_hash, created_at, updated_at FROM event WHERE period_id = ? AND ical_uid = ? AND ical_uid <> ''
+SELECT id, period_id, calendar_id, provider, external_id, instance_id, recurring_event_id, ical_uid, title, description, location, organizer, attendees, status, all_day, start_utc, end_utc, start_date, end_date, original_tz, active, source_hash, created_at, updated_at FROM event WHERE period_id = ? AND ical_uid = ? AND ical_uid <> ''
 `
 
 type ListEventsByIcalUIDParams struct {
@@ -127,7 +129,8 @@ func (q *Queries) ListEventsByIcalUID(ctx context.Context, arg ListEventsByIcalU
 			&i.ID,
 			&i.PeriodID,
 			&i.CalendarID,
-			&i.GoogleEventID,
+			&i.Provider,
+			&i.ExternalID,
 			&i.InstanceID,
 			&i.RecurringEventID,
 			&i.IcalUid,
@@ -162,7 +165,7 @@ func (q *Queries) ListEventsByIcalUID(ctx context.Context, arg ListEventsByIcalU
 }
 
 const listEventsForPeriod = `-- name: ListEventsForPeriod :many
-SELECT id, period_id, calendar_id, google_event_id, instance_id, recurring_event_id, ical_uid, title, description, location, organizer, attendees, status, all_day, start_utc, end_utc, start_date, end_date, original_tz, active, source_hash, created_at, updated_at FROM event WHERE period_id = ? AND active = 1 ORDER BY start_utc, start_date
+SELECT id, period_id, calendar_id, provider, external_id, instance_id, recurring_event_id, ical_uid, title, description, location, organizer, attendees, status, all_day, start_utc, end_utc, start_date, end_date, original_tz, active, source_hash, created_at, updated_at FROM event WHERE period_id = ? AND active = 1 ORDER BY start_utc, start_date
 `
 
 func (q *Queries) ListEventsForPeriod(ctx context.Context, periodID int64) ([]Event, error) {
@@ -178,7 +181,8 @@ func (q *Queries) ListEventsForPeriod(ctx context.Context, periodID int64) ([]Ev
 			&i.ID,
 			&i.PeriodID,
 			&i.CalendarID,
-			&i.GoogleEventID,
+			&i.Provider,
+			&i.ExternalID,
 			&i.InstanceID,
 			&i.RecurringEventID,
 			&i.IcalUid,
@@ -230,11 +234,12 @@ func (q *Queries) SetEventActiveByCalendar(ctx context.Context, arg SetEventActi
 
 const upsertEvent = `-- name: UpsertEvent :one
 INSERT INTO event (
-    period_id, calendar_id, google_event_id, instance_id, recurring_event_id,
+    period_id, calendar_id, provider, external_id, instance_id, recurring_event_id,
     ical_uid, title, description, location, organizer, attendees, status,
     all_day, start_utc, end_utc, start_date, end_date, original_tz, source_hash
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-ON CONFLICT (period_id, calendar_id, google_event_id, instance_id) DO UPDATE SET
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+ON CONFLICT (period_id, calendar_id, external_id, instance_id) DO UPDATE SET
+    provider           = excluded.provider,
     recurring_event_id = excluded.recurring_event_id,
     ical_uid           = excluded.ical_uid,
     title              = excluded.title,
@@ -251,13 +256,14 @@ ON CONFLICT (period_id, calendar_id, google_event_id, instance_id) DO UPDATE SET
     original_tz        = excluded.original_tz,
     source_hash        = excluded.source_hash,
     updated_at         = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
-RETURNING id, period_id, calendar_id, google_event_id, instance_id, recurring_event_id, ical_uid, title, description, location, organizer, attendees, status, all_day, start_utc, end_utc, start_date, end_date, original_tz, active, source_hash, created_at, updated_at
+RETURNING id, period_id, calendar_id, provider, external_id, instance_id, recurring_event_id, ical_uid, title, description, location, organizer, attendees, status, all_day, start_utc, end_utc, start_date, end_date, original_tz, active, source_hash, created_at, updated_at
 `
 
 type UpsertEventParams struct {
 	PeriodID         int64          `json:"period_id"`
 	CalendarID       int64          `json:"calendar_id"`
-	GoogleEventID    string         `json:"google_event_id"`
+	Provider         string         `json:"provider"`
+	ExternalID       string         `json:"external_id"`
 	InstanceID       string         `json:"instance_id"`
 	RecurringEventID string         `json:"recurring_event_id"`
 	IcalUid          string         `json:"ical_uid"`
@@ -282,7 +288,8 @@ func (q *Queries) UpsertEvent(ctx context.Context, arg UpsertEventParams) (Event
 	row := q.db.QueryRowContext(ctx, upsertEvent,
 		arg.PeriodID,
 		arg.CalendarID,
-		arg.GoogleEventID,
+		arg.Provider,
+		arg.ExternalID,
 		arg.InstanceID,
 		arg.RecurringEventID,
 		arg.IcalUid,
@@ -305,7 +312,8 @@ func (q *Queries) UpsertEvent(ctx context.Context, arg UpsertEventParams) (Event
 		&i.ID,
 		&i.PeriodID,
 		&i.CalendarID,
-		&i.GoogleEventID,
+		&i.Provider,
+		&i.ExternalID,
 		&i.InstanceID,
 		&i.RecurringEventID,
 		&i.IcalUid,
