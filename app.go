@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 
+	"github.com/dylanbr0wn/clockr/internal/ai"
 	"github.com/dylanbr0wn/clockr/internal/service"
 )
 
@@ -107,6 +108,48 @@ func (a *App) GetSetting(key string) (string, error) {
 // SetSetting persists a raw JSON setting value.
 func (a *App) SetSetting(key string, value string) error {
 	return a.Svc.SetSetting(a.callContext(), key, value)
+}
+
+// AIClassification is the privacy verdict for an endpoint URL.
+type AIClassification struct {
+	Local   bool   `json:"local"`
+	Verdict string `json:"verdict"`
+}
+
+// DiscoverLocalAIEndpoints probes known local OpenAI-compatible runtimes.
+func (a *App) DiscoverLocalAIEndpoints() ([]ai.Endpoint, error) {
+	return a.Svc.DiscoverLocalAIEndpoints(a.callContext()), nil
+}
+
+// ClassifyAIEndpoint reports whether a base URL is local and the privacy verdict.
+func (a *App) ClassifyAIEndpoint(baseURL string) AIClassification {
+	local, verdict := a.Svc.ClassifyAIEndpoint(baseURL)
+	return AIClassification{Local: local, Verdict: verdict}
+}
+
+// ListAIModels returns model ids from an OpenAI-compatible endpoint.
+func (a *App) ListAIModels(baseURL string, apiKey string) ([]string, error) {
+	return a.Svc.ListAIModels(a.callContext(), baseURL, apiKey)
+}
+
+// ValidateAIConfig checks endpoint connectivity and returns the privacy verdict.
+func (a *App) ValidateAIConfig(baseURL string, apiKey string, model string) (ai.ValidationResult, error) {
+	return a.Svc.ValidateAIConfig(a.callContext(), baseURL, apiKey, model)
+}
+
+// SaveAIEndpoint persists the selected OpenAI-compatible base URL.
+func (a *App) SaveAIEndpoint(baseURL string) error {
+	return a.Svc.SaveAIEndpoint(a.callContext(), baseURL)
+}
+
+// SaveAIModel persists the selected model name.
+func (a *App) SaveAIModel(model string) error {
+	return a.Svc.SaveAIModel(a.callContext(), model)
+}
+
+// SaveAIConfig persists the selected endpoint and model.
+func (a *App) SaveAIConfig(baseURL string, model string) error {
+	return a.Svc.SaveAIConfig(a.callContext(), baseURL, model)
 }
 
 // CreateManualEvent persists a scheduler-created manual block.

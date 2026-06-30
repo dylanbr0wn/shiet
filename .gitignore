@@ -40,3 +40,4 @@ pnpm-debug.log*
 !.vscode/extensions.json
 *.swp
 *~
+package-lock.json

@@ -180,7 +180,10 @@ func (s *Service) handleNewEvent(ctx context.Context, q *sqlc.Queries, periodID 
 		res.Flagged++
 	}
 
-	return s.applyMemory(ctx, q, periodID, inc)
+	if err := s.applyMemory(ctx, q, periodID, inc); err != nil {
+		return err
+	}
+	return s.applyAISuggestion(ctx, q, periodID, inc)
 }
 
 // handleChangedEvent flags conflicts arising from a material change. Time-only

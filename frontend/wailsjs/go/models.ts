@@ -1,5 +1,20 @@
 export namespace main {
 	
+	export class AIClassification {
+	    local: boolean;
+	    verdict: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new AIClassification(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.local = source["local"];
+	        this.verdict = source["verdict"];
+	    }
+	}
+	
 	export class ManualEventResult {
 	    periodId: number;
 	    id: number;
@@ -481,6 +496,49 @@ export namespace service {
 	        this.periodId = source["periodId"];
 	        this.effectiveFromDate = source["effectiveFromDate"];
 	        this.ianaTz = source["ianaTz"];
+	    }
+	}
+
+}
+
+export namespace ai {
+	
+	export class Endpoint {
+	    name: string;
+	    baseUrl: string;
+	    local: boolean;
+	    running: boolean;
+	    models?: string[];
+	
+	    static createFrom(source: any = {}) {
+	        return new Endpoint(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.name = source["name"];
+	        this.baseUrl = source["baseUrl"];
+	        this.local = source["local"];
+	        this.running = source["running"];
+	        this.models = source["models"];
+	    }
+	}
+	export class ValidationResult {
+	    ok: boolean;
+	    local: boolean;
+	    verdict: string;
+	    message: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new ValidationResult(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.ok = source["ok"];
+	        this.local = source["local"];
+	        this.verdict = source["verdict"];
+	        this.message = source["message"];
 	    }
 	}
 

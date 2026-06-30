@@ -110,3 +110,23 @@ export interface DayTimeline {
   coveredHours: number;
   gapHours: number;
 }
+
+export interface AIEndpoint {
+  name: string;
+  baseUrl: string;
+  local: boolean;
+  running: boolean;
+  models?: string[];
+}
+
+export interface AIValidationResult {
+  ok: boolean;
+  local: boolean;
+  verdict: string;
+  message: string;
+}
+
+export interface AIClassification {
+  local: boolean;
+  verdict: string;
+}

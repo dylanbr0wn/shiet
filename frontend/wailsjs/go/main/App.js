@@ -6,12 +6,20 @@ export function ComputeGaps(arg1) {
   return window['go']['main']['App']['ComputeGaps'](arg1);
 }
 
+export function ClassifyAIEndpoint(arg1) {
+  return window['go']['main']['App']['ClassifyAIEndpoint'](arg1);
+}
+
 export function CreateManualEvent(arg1) {
   return window['go']['main']['App']['CreateManualEvent'](arg1);
 }
 
 export function DeleteManualEvent(arg1) {
   return window['go']['main']['App']['DeleteManualEvent'](arg1);
+}
+
+export function DiscoverLocalAIEndpoints() {
+  return window['go']['main']['App']['DiscoverLocalAIEndpoints']();
 }
 
 export function EnsureCurrentPeriod(arg1, arg2) {
@@ -42,6 +50,10 @@ export function ListGapFills(arg1) {
   return window['go']['main']['App']['ListGapFills'](arg1);
 }
 
+export function ListAIModels(arg1, arg2) {
+  return window['go']['main']['App']['ListAIModels'](arg1, arg2);
+}
+
 export function ListOpenReviewItems(arg1) {
   return window['go']['main']['App']['ListOpenReviewItems'](arg1);
 }
@@ -62,6 +74,22 @@ export function SetSetting(arg1, arg2) {
   return window['go']['main']['App']['SetSetting'](arg1, arg2);
 }
 
+export function SaveAIConfig(arg1, arg2) {
+  return window['go']['main']['App']['SaveAIConfig'](arg1, arg2);
+}
+
+export function SaveAIEndpoint(arg1) {
+  return window['go']['main']['App']['SaveAIEndpoint'](arg1);
+}
+
+export function SaveAIModel(arg1) {
+  return window['go']['main']['App']['SaveAIModel'](arg1);
+}
+
 export function UpdateManualEvent(arg1) {
   return window['go']['main']['App']['UpdateManualEvent'](arg1);
+}
+
+export function ValidateAIConfig(arg1, arg2, arg3) {
+  return window['go']['main']['App']['ValidateAIConfig'](arg1, arg2, arg3);
 }
