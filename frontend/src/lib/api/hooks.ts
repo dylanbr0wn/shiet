@@ -250,7 +250,7 @@ export function useClearAIModel() {
 
   return useMutation({
     mutationFn: () => setSetting("ai.model", '""'),
-    onSuccess: () => {
+    onMutate: () => {
       queryClient.setQueryData(clockrQueryKeys.setting("ai.model"), '""');
     },
   });
@@ -261,7 +261,7 @@ export function useSaveAIEndpoint() {
 
   return useMutation({
     mutationFn: (baseURL: string) => saveAIEndpoint(baseURL),
-    onSuccess: (_result, baseURL) => {
+    onMutate: (baseURL) => {
       queryClient.setQueryData(
         clockrQueryKeys.setting("ai.base_url"),
         JSON.stringify(baseURL),
@@ -275,7 +275,7 @@ export function useSaveAIModel() {
 
   return useMutation({
     mutationFn: (model: string) => saveAIModel(model),
-    onSuccess: (_result, model) => {
+    onMutate: (model) => {
       queryClient.setQueryData(
         clockrQueryKeys.setting("ai.model"),
         JSON.stringify(model),
@@ -295,7 +295,7 @@ export function useSaveAIConfig() {
       baseURL: string;
       model: string;
     }) => saveAIConfig(baseURL, model),
-    onSuccess: (_result, { baseURL, model }) => {
+    onMutate: ({ baseURL, model }) => {
       queryClient.setQueryData(
         clockrQueryKeys.setting("ai.base_url"),
         JSON.stringify(baseURL),

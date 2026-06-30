@@ -5,7 +5,7 @@ import {
   ShieldCheck,
   ShieldAlert,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -55,21 +55,19 @@ export function AIModelSettings() {
     [modelSetting.data],
   );
 
-  const [baseURL, setBaseURL] = useState("");
+  const [baseURLDraft, setBaseURLDraft] = useState("");
+  const [modelDraft, setModelDraft] = useState<string | null>(null);
   const [apiKey, setApiKey] = useState("");
-  const [model, setModel] = useState("");
   const [validationMessage, setValidationMessage] = useState<string | null>(
     null,
   );
-  const pendingModelPickRef = useRef<{
-    discoveredModel?: string;
-  } | null>(null);
 
   const discovery = useDiscoverLocalAIEndpoints();
-  const activeBaseURL = baseURL || savedBaseURL;
+  const activeBaseURL = baseURLDraft || savedBaseURL;
+  const activeModel = modelDraft ?? savedModel;
   const classify = useClassifyAIEndpoint(activeBaseURL);
   const modelsQuery = useAIModels(activeBaseURL, apiKey);
-  const validate = useValidateAIConfig(activeBaseURL, apiKey, model);
+  const validate = useValidateAIConfig(activeBaseURL, apiKey, activeModel);
   const saveEndpoint = useSaveAIEndpoint();
   const saveModel = useSaveAIModel();
   const clearModel = useClearAIModel();
@@ -81,93 +79,13 @@ export function AIModelSettings() {
       aiEndpointsMatch(activeBaseURL, savedBaseURL),
   );
 
-  const models =
-    modelsQuery.data ??
-    (modelSavedForActiveEndpoint && savedModel ? [savedModel] : []);
+  const models = modelsQuery.data ?? [];
 
-  // Restore persisted settings when the panel opens.
   useEffect(() => {
     if (savedBaseURL) {
-      setBaseURL(savedBaseURL);
+      setBaseURLDraft(savedBaseURL);
     }
   }, [savedBaseURL]);
-
-  // Restore a saved model only when it belongs to the active endpoint and
-  // appears in that endpoint's loaded model list.
-  useEffect(() => {
-    if (
-      !savedModel ||
-      !modelSavedForActiveEndpoint ||
-      !modelsQuery.data?.includes(savedModel) ||
-      model
-    ) {
-      return;
-    }
-    setModel(savedModel);
-  }, [model, modelSavedForActiveEndpoint, modelsQuery.data, savedModel]);
-
-  const persistEndpoint = useCallback(
-    async (nextBaseURL: string) => {
-      const trimmedBaseURL = nextBaseURL.trim();
-      if (!trimmedBaseURL) {
-        return;
-      }
-      await saveEndpoint.mutateAsync(trimmedBaseURL);
-    },
-    [saveEndpoint],
-  );
-
-  const persistModel = useCallback(
-    async (nextModel: string) => {
-      const trimmedModel = nextModel.trim();
-      if (!trimmedModel) {
-        return;
-      }
-      await saveModel.mutateAsync(trimmedModel);
-    },
-    [saveModel],
-  );
-
-  const resetModelSelection = useCallback(async () => {
-    setModel("");
-    await clearModel.mutateAsync();
-  }, [clearModel]);
-
-  // After selecting a reachable endpoint, pick a model once its list loads.
-  useEffect(() => {
-    if (!pendingModelPickRef.current || modelsQuery.isFetching) {
-      return;
-    }
-
-    const { discoveredModel } = pendingModelPickRef.current;
-    pendingModelPickRef.current = null;
-
-    if (modelsQuery.isError || !modelsQuery.data?.length) {
-      void resetModelSelection();
-      return;
-    }
-
-    const nextModels = modelsQuery.data;
-    const preferredModel =
-      (discoveredModel &&
-        nextModels.includes(discoveredModel) &&
-        discoveredModel) ||
-      nextModels[0] ||
-      "";
-
-    if (preferredModel) {
-      setModel(preferredModel);
-      void persistModel(preferredModel);
-    } else {
-      void resetModelSelection();
-    }
-  }, [
-    modelsQuery.data,
-    modelsQuery.isError,
-    modelsQuery.isFetching,
-    persistModel,
-    resetModelSelection,
-  ]);
 
   const classification = useMemo(() => {
     if (!activeBaseURL.trim()) {
@@ -182,47 +100,45 @@ export function AIModelSettings() {
   );
 
   const isSavedModel = useMemo(
-    () => Boolean(savedModel && model === savedModel && modelSavedForActiveEndpoint),
-    [model, modelSavedForActiveEndpoint, savedModel],
+    () => Boolean(savedModel && activeModel === savedModel && modelSavedForActiveEndpoint),
+    [activeModel, modelSavedForActiveEndpoint, savedModel],
   );
 
   const refreshModels = async () => {
     const result = await modelsQuery.refetch();
     const nextModels = result.data ?? [];
-    if (nextModels.length === 0) {
-      await resetModelSelection();
-      return;
-    }
-    if (model && !nextModels.includes(model)) {
-      const fallbackModel = nextModels[0];
-      setModel(fallbackModel);
-      await persistModel(fallbackModel);
+    if (
+      savedModel &&
+      modelSavedForActiveEndpoint &&
+      nextModels.length > 0 &&
+      !nextModels.includes(savedModel)
+    ) {
+      await clearModel.mutateAsync();
+      setModelDraft(null);
     }
   };
 
   const handleSelectEndpoint = async (endpoint: AIEndpoint) => {
     setValidationMessage(null);
-    setBaseURL(endpoint.baseUrl);
-    setModel("");
-    await persistEndpoint(endpoint.baseUrl);
+    setBaseURLDraft(endpoint.baseUrl);
+    setModelDraft(null);
+    await saveEndpoint.mutateAsync(endpoint.baseUrl);
+
+    const switchingEndpoint = !aiEndpointsMatch(endpoint.baseUrl, savedBaseURL);
+    if (switchingEndpoint) {
+      await clearModel.mutateAsync();
+    }
 
     if (!endpoint.running) {
-      pendingModelPickRef.current = null;
-      await resetModelSelection();
       setValidationMessage(
         `${endpoint.name} is not running. Start it and scan again to load models.`,
       );
-      return;
     }
-
-    pendingModelPickRef.current = {
-      discoveredModel: endpoint.models?.[0],
-    };
   };
 
   const handleModelChange = (nextModel: string) => {
-    setModel(nextModel);
-    void persistModel(nextModel);
+    setModelDraft(null);
+    void saveModel.mutate(nextModel);
   };
 
   const handleValidate = async () => {
@@ -243,7 +159,7 @@ export function AIModelSettings() {
 
     setValidationMessage(validation.message);
     if (validation.ok) {
-      await saveConfig.mutateAsync({ baseURL: activeBaseURL, model });
+      await saveConfig.mutateAsync({ baseURL: activeBaseURL, model: activeModel });
     }
   };
 
@@ -332,10 +248,13 @@ export function AIModelSettings() {
             <Input
               id="ai-base-url"
               className="font-mono"
-              value={baseURL}
-              onChange={(event) => setBaseURL(event.target.value)}
+              value={baseURLDraft}
+              onChange={(event) => setBaseURLDraft(event.target.value)}
               onBlur={() => {
-                void persistEndpoint(baseURL);
+                const trimmed = baseURLDraft.trim();
+                if (trimmed) {
+                  void saveEndpoint.mutate(trimmed);
+                }
               }}
               placeholder="http://127.0.0.1:11434/v1"
             />
@@ -361,7 +280,7 @@ export function AIModelSettings() {
                 Model
               </Label>
               <Select
-                value={model || undefined}
+                value={activeModel || undefined}
                 onValueChange={handleModelChange}
               >
                 <SelectTrigger id="ai-model" className="w-full bg-background">
@@ -392,7 +311,7 @@ export function AIModelSettings() {
               </Button>
               <Button
                 type="button"
-                disabled={!activeBaseURL.trim() || !model.trim() || isBusy}
+                disabled={!activeBaseURL.trim() || !activeModel.trim() || isBusy}
                 onClick={() => void handleValidate()}
               >
                 {validate.isFetching ? (
@@ -408,12 +327,13 @@ export function AIModelSettings() {
           <Input
             aria-label="Custom model name"
             className="font-mono"
-            value={model}
-            onChange={(event) => setModel(event.target.value)}
+            value={activeModel}
+            onChange={(event) => setModelDraft(event.target.value)}
             onBlur={(event) => {
               const nextModel = event.target.value.trim();
+              setModelDraft(null);
               if (nextModel) {
-                void persistModel(nextModel);
+                void saveModel.mutate(nextModel);
               }
             }}
             placeholder="Or type a model name"
