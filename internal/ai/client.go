@@ -88,13 +88,15 @@ type chatResponse struct {
 }
 
 // Validate sends a tiny chat completion to confirm the endpoint and model work.
+// Any non-empty assistant reply counts as success — local models vary widely in
+// tone, formatting, and verbosity.
 func (c *Client) Validate(ctx context.Context, model string) error {
 	body, err := json.Marshal(chatRequest{
 		Model: model,
 		Messages: []chatMessage{
-			{Role: "user", Content: "Reply with exactly: ok"},
+			{Role: "user", Content: "Hi"},
 		},
-		MaxTokens: 8,
+		MaxTokens: 32,
 	})
 	if err != nil {
 		return err
@@ -122,10 +124,24 @@ func (c *Client) Validate(ctx context.Context, model string) error {
 	if err := json.NewDecoder(res.Body).Decode(&payload); err != nil {
 		return err
 	}
-	if len(payload.Choices) == 0 || strings.TrimSpace(payload.Choices[0].Message.Content) == "" {
+	if len(payload.Choices) == 0 {
+		return fmt.Errorf("validate model: empty response")
+	}
+	if !validationReplyOK(payload.Choices[0].Message.Content) {
 		return fmt.Errorf("validate model: empty response")
 	}
 	return nil
+}
+
+func validationReplyOK(content string) bool {
+	trimmed := strings.TrimSpace(content)
+	if trimmed == "" {
+		return false
+	}
+	// Strip common wrappers some chat templates add around short replies.
+	trimmed = strings.Trim(trimmed, `"'`)
+	trimmed = strings.TrimSpace(trimmed)
+	return trimmed != ""
 }
 
 // ChatCompletion sends a chat request and returns the assistant text.

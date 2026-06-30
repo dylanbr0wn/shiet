@@ -41,7 +41,7 @@ func TestClientListModelsAndValidate(t *testing.T) {
 		case "/v1/chat/completions":
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"choices": []map[string]any{
-					{"message": map[string]string{"content": "ok"}},
+					{"message": map[string]string{"content": "Hello! How can I help you today?"}},
 				},
 			})
 		default:
@@ -61,6 +61,35 @@ func TestClientListModelsAndValidate(t *testing.T) {
 
 	if err := client.Validate(context.Background(), "llama3"); err != nil {
 		t.Fatalf("Validate: %v", err)
+	}
+}
+
+func TestValidateAcceptsVariedReplies(t *testing.T) {
+	replies := []string{
+		"ok",
+		"OK!",
+		"Hello there.",
+		`"Hi!"`,
+		"Sure, I'm here.",
+	}
+
+	for _, reply := range replies {
+		reply := reply
+		t.Run(reply, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				_ = json.NewEncoder(w).Encode(map[string]any{
+					"choices": []map[string]any{
+						{"message": map[string]string{"content": reply}},
+					},
+				})
+			}))
+			defer server.Close()
+
+			client := ai.NewClient(server.URL+"/v1", "")
+			if err := client.Validate(context.Background(), "test-model"); err != nil {
+				t.Fatalf("Validate(%q): %v", reply, err)
+			}
+		})
 	}
 }
 
