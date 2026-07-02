@@ -17,6 +17,7 @@ type Querier interface {
 	CreateSubmission(ctx context.Context, arg CreateSubmissionParams) (Submission, error)
 	DeleteCategory(ctx context.Context, id int64) error
 	DeleteEvent(ctx context.Context, id int64) error
+	DeleteIntegrationConnection(ctx context.Context, arg DeleteIntegrationConnectionParams) error
 	DeleteManualGapFill(ctx context.Context, arg DeleteManualGapFillParams) (int64, error)
 	DeleteOverlay(ctx context.Context, id int64) error
 	DeletePeriod(ctx context.Context, id int64) error
@@ -26,6 +27,7 @@ type Querier interface {
 	GetCategory(ctx context.Context, id int64) (Category, error)
 	GetDefaultGapCategory(ctx context.Context) (Category, error)
 	GetEvent(ctx context.Context, id int64) (Event, error)
+	GetIntegrationConnection(ctx context.Context, arg GetIntegrationConnectionParams) (IntegrationConnection, error)
 	GetLatestSubmission(ctx context.Context, periodID int64) (Submission, error)
 	GetMemory(ctx context.Context, matchKey string) (Memory, error)
 	GetOverlay(ctx context.Context, arg GetOverlayParams) (Overlay, error)
@@ -39,6 +41,8 @@ type Querier interface {
 	ListEventsForPeriod(ctx context.Context, periodID int64) ([]Event, error)
 	ListGapFillsForDay(ctx context.Context, arg ListGapFillsForDayParams) ([]GapFill, error)
 	ListGapFillsForPeriod(ctx context.Context, periodID int64) ([]GapFill, error)
+	ListIntegrationConnections(ctx context.Context) ([]IntegrationConnection, error)
+	ListIntegrationConnectionsByProvider(ctx context.Context, provider string) ([]IntegrationConnection, error)
 	ListMemory(ctx context.Context) ([]Memory, error)
 	ListOpenReviewItems(ctx context.Context, periodID int64) ([]ReviewItem, error)
 	ListOverlaysForPeriod(ctx context.Context, periodID int64) ([]Overlay, error)
@@ -60,11 +64,13 @@ type Querier interface {
 	SetSetting(ctx context.Context, arg SetSettingParams) error
 	TouchPeriodSynced(ctx context.Context, arg TouchPeriodSyncedParams) error
 	UpdateGapFill(ctx context.Context, arg UpdateGapFillParams) (GapFill, error)
+	UpdateIntegrationConnectionStatus(ctx context.Context, arg UpdateIntegrationConnectionStatusParams) error
 	UpdatePeriodTarget(ctx context.Context, arg UpdatePeriodTargetParams) error
 	UpsertCalendar(ctx context.Context, arg UpsertCalendarParams) (Calendar, error)
 	// Re-sync entry point: insert a fact, or update mutable synced fields on re-pull.
 	// Never touches user decisions (those live in overlay), and preserves `active`.
 	UpsertEvent(ctx context.Context, arg UpsertEventParams) (Event, error)
+	UpsertIntegrationConnection(ctx context.Context, arg UpsertIntegrationConnectionParams) (IntegrationConnection, error)
 	UpsertOverlay(ctx context.Context, arg UpsertOverlayParams) (Overlay, error)
 	UpsertTzSegment(ctx context.Context, arg UpsertTzSegmentParams) (TzSegment, error)
 }
