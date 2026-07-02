@@ -1,0 +1,255 @@
+package google
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"net/http"
+	"net/url"
+	"strings"
+	"time"
+
+	"github.com/dylanbr0wn/clockr/internal/db/sqlc"
+	"github.com/dylanbr0wn/clockr/internal/integration/connection"
+	"github.com/dylanbr0wn/clockr/internal/integration/httpclient"
+	"github.com/dylanbr0wn/clockr/internal/integration/oauth"
+	"github.com/dylanbr0wn/clockr/internal/integration/secrets"
+	"github.com/dylanbr0wn/clockr/internal/service"
+)
+
+var errCancelled = errors.New("cancelled event")
+
+// Authorizer runs desktop OAuth and persists tokens.
+type Authorizer interface {
+	Authorize(ctx context.Context, accountID string) (oauth.Result, error)
+}
+
+// Provider implements Google Calendar list + pull against the shared integration platform.
+type Provider struct {
+	Config     oauth.ProviderConfig
+	Store      secrets.TokenStore
+	Registry   *connection.Registry
+	Queries    *sqlc.Queries
+	Authorizer Authorizer
+	BaseURL    string // override for tests
+}
+
+// Connect runs OAuth, stores the token in the keychain, and upserts connection metadata.
+func (p *Provider) Connect(ctx context.Context, accountID, accountLabel string) (connection.Connection, error) {
+	accountID = strings.TrimSpace(accountID)
+	if accountID == "" {
+		return connection.Connection{}, errors.New("account_id is required")
+	}
+	if p.Store == nil {
+		return connection.Connection{}, errors.New("token store is required")
+	}
+	if p.Registry == nil {
+		return connection.Connection{}, errors.New("connection registry is required")
+	}
+
+	auth := p.Authorizer
+	if auth == nil {
+		auth = &oauth.Flow{Config: p.Config, Store: p.Store}
+	}
+
+	result, err := auth.Authorize(ctx, accountID)
+	if err != nil {
+		return connection.Connection{}, fmt.Errorf("authorize google: %w", err)
+	}
+	if err := p.Store.Set(p.Config.Provider, accountID, result.Token); err != nil {
+		return connection.Connection{}, fmt.Errorf("persist token: %w", err)
+	}
+
+	label := strings.TrimSpace(accountLabel)
+	if label == "" {
+		label = accountID
+	}
+
+	return p.Registry.Upsert(ctx, connection.UpsertInput{
+		Provider:     p.Config.Provider,
+		AccountLabel: label,
+		AccountID:    accountID,
+		Scopes:       result.Scopes,
+		Status:       connection.StatusConnected,
+	})
+}
+
+// Disconnect removes tokens and the connection row.
+func (p *Provider) Disconnect(ctx context.Context, accountID string) error {
+	accountID = strings.TrimSpace(accountID)
+	if accountID == "" {
+		return errors.New("account_id is required")
+	}
+	if p.Store != nil {
+		_ = p.Store.Delete(p.Config.Provider, accountID)
+	}
+	if p.Registry == nil {
+		return errors.New("connection registry is required")
+	}
+	return p.Registry.Disconnect(ctx, p.Config.Provider, accountID)
+}
+
+// SyncCalendars pulls calendarList.list and upserts calendar rows for provider=google.
+func (p *Provider) SyncCalendars(ctx context.Context, accountID string) ([]sqlc.Calendar, error) {
+	if p.Queries == nil {
+		return nil, errors.New("queries are required")
+	}
+
+	var out []sqlc.Calendar
+	pageToken := ""
+	for {
+		q := url.Values{}
+		if pageToken != "" {
+			q.Set("pageToken", pageToken)
+		}
+		var resp calendarListResponse
+		if err := p.getJSON(ctx, accountID, calendarListPath, q, &resp); err != nil {
+			return nil, err
+		}
+
+		for _, item := range resp.Items {
+			name := strings.TrimSpace(item.Summary)
+			if name == "" {
+				name = item.ID
+			}
+			primary := int64(0)
+			if item.Primary {
+				primary = 1
+			}
+			cal, err := p.Queries.UpsertCalendar(ctx, sqlc.UpsertCalendarParams{
+				Provider:   service.ProviderGoogle,
+				ExternalID: item.ID,
+				Name:       name,
+				IsPrimary:  primary,
+			})
+			if err != nil {
+				return nil, fmt.Errorf("upsert calendar %q: %w", item.ID, err)
+			}
+			out = append(out, cal)
+		}
+
+		pageToken = resp.NextPageToken
+		if pageToken == "" {
+			break
+		}
+	}
+	return out, nil
+}
+
+// FetchEvents pulls events.list for the given calendars across a pay-period date range.
+// periodStart and periodEnd are inclusive YYYY-MM-DD bounds.
+func (p *Provider) FetchEvents(
+	ctx context.Context,
+	accountID string,
+	periodStart, periodEnd string,
+	calendars []sqlc.Calendar,
+) ([]service.IncomingEvent, error) {
+	if len(calendars) == 0 {
+		return nil, nil
+	}
+
+	timeMin, timeMax, err := periodBounds(periodStart, periodEnd)
+	if err != nil {
+		return nil, err
+	}
+
+	var out []service.IncomingEvent
+	for _, cal := range calendars {
+		pageToken := ""
+		for {
+			q := url.Values{}
+			q.Set("singleEvents", "true")
+			q.Set("orderBy", "startTime")
+			q.Set("timeMin", timeMin)
+			q.Set("timeMax", timeMax)
+			if pageToken != "" {
+				q.Set("pageToken", pageToken)
+			}
+
+			path := fmt.Sprintf(eventsListPath, url.PathEscape(cal.ExternalID))
+			var resp eventsListResponse
+			if err := p.getJSON(ctx, accountID, path, q, &resp); err != nil {
+				return nil, fmt.Errorf("list events for %q: %w", cal.ExternalID, err)
+			}
+
+			for _, item := range resp.Items {
+				inc, err := mapEvent(cal.ID, item)
+				if errors.Is(err, errCancelled) {
+					continue
+				}
+				if err != nil {
+					return nil, fmt.Errorf("map event %q: %w", item.ID, err)
+				}
+				out = append(out, inc)
+			}
+
+			pageToken = resp.NextPageToken
+			if pageToken == "" {
+				break
+			}
+		}
+	}
+	return out, nil
+}
+
+func (p *Provider) getJSON(ctx context.Context, accountID, path string, query url.Values, dest any) error {
+	client := p.httpClient(accountID)
+	rawURL := p.baseURL() + path
+	if len(query) > 0 {
+		rawURL += "?" + query.Encode()
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, rawURL, nil)
+	if err != nil {
+		return err
+	}
+
+	resp, err := client.Do(ctx, req)
+	if err != nil {
+		return err
+	}
+	body, err := httpclient.ReadBody(resp)
+	if err != nil {
+		return err
+	}
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return fmt.Errorf("google api %s: %s", path, strings.TrimSpace(string(body)))
+	}
+	if err := json.Unmarshal(body, dest); err != nil {
+		return fmt.Errorf("decode google api response: %w", err)
+	}
+	return nil
+}
+
+func (p *Provider) httpClient(accountID string) *httpclient.Client {
+	return &httpclient.Client{
+		Provider:  p.Config.Provider,
+		AccountID: accountID,
+		Config:    p.Config,
+		Store:     p.Store,
+		Registry:  p.Registry,
+	}
+}
+
+func (p *Provider) baseURL() string {
+	if strings.TrimSpace(p.BaseURL) != "" {
+		return strings.TrimRight(p.BaseURL, "/")
+	}
+	return apiBaseURL
+}
+
+func periodBounds(startDate, endDate string) (timeMin, timeMax string, err error) {
+	start, err := time.Parse("2006-01-02", startDate)
+	if err != nil {
+		return "", "", fmt.Errorf("parse period start %q: %w", startDate, err)
+	}
+	end, err := time.Parse("2006-01-02", endDate)
+	if err != nil {
+		return "", "", fmt.Errorf("parse period end %q: %w", endDate, err)
+	}
+	if end.Before(start) {
+		return "", "", fmt.Errorf("period end %q before start %q", endDate, startDate)
+	}
+	return start.UTC().Format(time.RFC3339), end.Add(24 * time.Hour).UTC().Format(time.RFC3339), nil
+}
