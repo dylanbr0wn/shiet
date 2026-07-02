@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net"
 	"net/http"
 	"net/url"
@@ -111,13 +112,11 @@ func (f *Flow) Authorize(ctx context.Context, accountID string) (Result, error) 
 	}
 
 	var serveWG sync.WaitGroup
-	serveWG.Add(1)
-	go func() {
-		defer serveWG.Done()
+	serveWG.Go(func() {
 		if serveErr := srv.Serve(ln); serveErr != nil && !errors.Is(serveErr, http.ErrServerClosed) {
 			errCh <- serveErr
 		}
-	}()
+	})
 
 	open := f.OpenURL
 	if open == nil {
@@ -165,7 +164,9 @@ func (f *Flow) Authorize(ctx context.Context, accountID string) (Result, error) 
 func shutdownAndWait(srv *http.Server, serveWG *sync.WaitGroup) {
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), shutdownGrace)
 	defer cancel()
-	_ = srv.Shutdown(shutdownCtx)
+	if err := srv.Shutdown(shutdownCtx); err != nil {
+		log.Printf("oauth callback server shutdown: %v", err)
+	}
 
 	done := make(chan struct{})
 	go func() {
