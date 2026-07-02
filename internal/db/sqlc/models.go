@@ -72,6 +72,17 @@ type GapFill struct {
 	UpdatedAt  string        `json:"updated_at"`
 }
 
+type IntegrationConnection struct {
+	ID           int64  `json:"id"`
+	Provider     string `json:"provider"`
+	AccountLabel string `json:"account_label"`
+	AccountID    string `json:"account_id"`
+	Scopes       string `json:"scopes"`
+	Status       string `json:"status"`
+	ConnectedAt  string `json:"connected_at"`
+	UpdatedAt    string `json:"updated_at"`
+}
+
 type Memory struct {
 	MatchKey   string `json:"match_key"`
 	CategoryID int64  `json:"category_id"`

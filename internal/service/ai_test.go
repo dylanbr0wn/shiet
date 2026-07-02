@@ -51,10 +51,11 @@ func TestSync_AppliesAISuggestion(t *testing.T) {
 	}
 
 	o, err := e.q.GetOverlay(ctx, sqlc.GetOverlayParams{
-		PeriodID:      e.periodID,
-		GoogleEventID: event.GoogleEventID,
-		InstanceID:    "",
-		Kind:          "category",
+		PeriodID:   e.periodID,
+		Provider:   event.Provider,
+		ExternalID: event.ExternalID,
+		InstanceID: "",
+		Kind:       "category",
 	})
 	if err != nil {
 		t.Fatalf("expected ai overlay: %v", err)

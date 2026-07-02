@@ -1,0 +1,202 @@
+package oauth
+
+import (
+	"context"
+	"crypto/rand"
+	"encoding/base64"
+	"errors"
+	"fmt"
+	"io"
+	"net"
+	"net/http"
+	"net/url"
+	"strings"
+	"time"
+
+	"github.com/dylanbr0wn/clockr/internal/integration/secrets"
+	"github.com/pkg/browser"
+	"golang.org/x/oauth2"
+)
+
+const (
+	callbackPath     = "/oauth/callback"
+	loopbackHost     = "127.0.0.1"
+	authWaitTimeout  = 5 * time.Minute
+	shutdownGrace    = 250 * time.Millisecond
+)
+
+// BrowserOpener opens a URL in the system browser. Injectable for tests.
+type BrowserOpener func(url string) error
+
+// Flow runs desktop OAuth with PKCE and a loopback redirect.
+type Flow struct {
+	Config  ProviderConfig
+	Store   secrets.TokenStore
+	OpenURL BrowserOpener
+}
+
+// Result is returned after a successful authorization.
+type Result struct {
+	Provider  string
+	AccountID string
+	Token     secrets.Token
+	Scopes    []string
+}
+
+// Authorize opens the system browser, waits for the loopback redirect, exchanges
+// the code for tokens, and persists them in the token store.
+func (f *Flow) Authorize(ctx context.Context, accountID string) (Result, error) {
+	if f.Store == nil {
+		return Result{}, errors.New("token store is required")
+	}
+	accountID = strings.TrimSpace(accountID)
+	if accountID == "" {
+		return Result{}, errors.New("account_id is required")
+	}
+
+	ln, redirectURL, err := listenLoopback()
+	if err != nil {
+		return Result{}, err
+	}
+	defer ln.Close()
+
+	state, err := randomString(32)
+	if err != nil {
+		return Result{}, err
+	}
+	verifier, err := randomString(64)
+	if err != nil {
+		return Result{}, err
+	}
+
+	oauthCfg := f.Config.OAuth2Config(redirectURL)
+	authURL := oauthCfg.AuthCodeURL(
+		state,
+		oauth2.AccessTypeOffline,
+		oauth2.ApprovalForce,
+		oauth2.S256ChallengeOption(verifier),
+	)
+
+	codeCh := make(chan string, 1)
+	errCh := make(chan error, 1)
+
+	srv := &http.Server{
+		Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Path != callbackPath {
+				http.NotFound(w, r)
+				return
+			}
+			if r.URL.Query().Get("state") != state {
+				errCh <- errors.New("oauth state mismatch")
+				http.Error(w, "state mismatch", http.StatusBadRequest)
+				return
+			}
+			if errMsg := r.URL.Query().Get("error"); errMsg != "" {
+				desc := r.URL.Query().Get("error_description")
+				errCh <- fmt.Errorf("oauth error: %s: %s", errMsg, desc)
+				http.Error(w, errMsg, http.StatusBadRequest)
+				return
+			}
+			code := r.URL.Query().Get("code")
+			if code == "" {
+				errCh <- errors.New("missing oauth code")
+				http.Error(w, "missing code", http.StatusBadRequest)
+				return
+			}
+			w.Header().Set("Content-Type", "text/html; charset=utf-8")
+			_, _ = io.WriteString(w, "<html><body><p>Authorization complete. You can close this window and return to Clockr.</p></body></html>")
+			codeCh <- code
+		}),
+	}
+
+	go func() {
+		if serveErr := srv.Serve(ln); serveErr != nil && !errors.Is(serveErr, http.ErrServerClosed) {
+			errCh <- serveErr
+		}
+	}()
+
+	open := f.OpenURL
+	if open == nil {
+		open = browser.OpenURL
+	}
+	if err := open(authURL); err != nil {
+		_ = srv.Shutdown(context.Background())
+		return Result{}, fmt.Errorf("open browser: %w", err)
+	}
+
+	waitCtx, cancel := context.WithTimeout(ctx, authWaitTimeout)
+	defer cancel()
+
+	var code string
+	select {
+	case <-waitCtx.Done():
+		_ = srv.Shutdown(context.Background())
+		return Result{}, fmt.Errorf("oauth timed out: %w", waitCtx.Err())
+	case err := <-errCh:
+		_ = srv.Shutdown(context.Background())
+		return Result{}, err
+	case code = <-codeCh:
+	}
+
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), shutdownGrace)
+	defer shutdownCancel()
+	_ = srv.Shutdown(shutdownCtx)
+
+	oauthTok, err := oauthCfg.Exchange(ctx, code, oauth2.VerifierOption(verifier))
+	if err != nil {
+		return Result{}, fmt.Errorf("exchange code: %w", err)
+	}
+
+	token := secrets.TokenFromOAuth2(oauthTok)
+	if err := f.Store.Set(f.Config.Provider, accountID, token); err != nil {
+		return Result{}, fmt.Errorf("persist token: %w", err)
+	}
+
+	return Result{
+		Provider:  f.Config.Provider,
+		AccountID: accountID,
+		Token:     token,
+		Scopes:    append([]string(nil), f.Config.Scopes...),
+	}, nil
+}
+
+func listenLoopback() (net.Listener, string, error) {
+	ln, err := net.Listen("tcp", loopbackHost+":0")
+	if err != nil {
+		return nil, "", fmt.Errorf("listen loopback: %w", err)
+	}
+	_, port, err := net.SplitHostPort(ln.Addr().String())
+	if err != nil {
+		_ = ln.Close()
+		return nil, "", err
+	}
+	redirectURL := fmt.Sprintf("http://%s:%s%s", loopbackHost, port, callbackPath)
+	return ln, redirectURL, nil
+}
+
+func randomString(n int) (string, error) {
+	b := make([]byte, n)
+	if _, err := rand.Read(b); err != nil {
+		return "", err
+	}
+	return base64.RawURLEncoding.EncodeToString(b), nil
+}
+
+// ParseCallback extracts the authorization code from a loopback callback URL.
+func ParseCallback(rawURL, expectedState string) (string, error) {
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		return "", err
+	}
+	if u.Query().Get("state") != expectedState {
+		return "", errors.New("oauth state mismatch")
+	}
+	if errMsg := u.Query().Get("error"); errMsg != "" {
+		return "", fmt.Errorf("oauth error: %s", errMsg)
+	}
+	code := u.Query().Get("code")
+	if code == "" {
+		return "", errors.New("missing oauth code")
+	}
+	return code, nil
+}

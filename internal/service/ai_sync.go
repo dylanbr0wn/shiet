@@ -13,7 +13,7 @@ import (
 // applyAISuggestion auto-categorizes a new event when memory did not match and
 // a local/cloud model is configured. Failures are best-effort and never abort sync.
 func (s *Service) applyAISuggestion(ctx context.Context, q *sqlc.Queries, periodID int64, inc IncomingEvent) error {
-	has, err := hasCategory(ctx, q, periodID, inc.GoogleEventID, inc.InstanceID)
+	has, err := hasCategory(ctx, q, periodID, inc.Provider, inc.ExternalID, inc.InstanceID)
 	if err != nil || has {
 		return err
 	}
@@ -63,11 +63,12 @@ func (s *Service) applyAISuggestion(ctx context.Context, q *sqlc.Queries, period
 	}
 
 	if _, err := q.UpsertOverlay(ctx, sqlc.UpsertOverlayParams{
-		PeriodID:      periodID,
-		GoogleEventID: inc.GoogleEventID,
-		InstanceID:    inc.InstanceID,
-		CategoryID:    sql.NullInt64{Int64: categoryID, Valid: true},
-		Kind:          overlayKindCategory,
+		PeriodID:   periodID,
+		Provider:   inc.Provider,
+		ExternalID: inc.ExternalID,
+		InstanceID: inc.InstanceID,
+		CategoryID: sql.NullInt64{Int64: categoryID, Valid: true},
+		Kind:       overlayKindCategory,
 	}); err != nil {
 		return fmt.Errorf("apply ai overlay: %w", err)
 	}
