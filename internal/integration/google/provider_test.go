@@ -1,0 +1,331 @@
+package google_test
+
+import (
+	"context"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"net/url"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/dylanbr0wn/clockr/internal/db"
+	"github.com/dylanbr0wn/clockr/internal/db/sqlc"
+	"github.com/dylanbr0wn/clockr/internal/integration/connection"
+	"github.com/dylanbr0wn/clockr/internal/integration/google"
+	"github.com/dylanbr0wn/clockr/internal/integration/oauth"
+	"github.com/dylanbr0wn/clockr/internal/integration/secrets"
+	"github.com/dylanbr0wn/clockr/internal/service"
+)
+
+func TestOAuthConfig(t *testing.T) {
+	cfg := google.OAuthConfig("client-id", "client-secret")
+	if cfg.Provider != service.ProviderGoogle {
+		t.Fatalf("provider: %q", cfg.Provider)
+	}
+	if cfg.ClientID != "client-id" || cfg.ClientSecret != "client-secret" {
+		t.Fatalf("client credentials: %+v", cfg)
+	}
+	if len(cfg.Scopes) != 1 || cfg.Scopes[0] != "https://www.googleapis.com/auth/calendar.readonly" {
+		t.Fatalf("scopes: %#v", cfg.Scopes)
+	}
+}
+
+type stubAuthorizer struct {
+	result oauth.Result
+	err    error
+}
+
+func (s stubAuthorizer) Authorize(ctx context.Context, accountID string) (oauth.Result, error) {
+	if s.err != nil {
+		return oauth.Result{}, s.err
+	}
+	return s.result, nil
+}
+
+func newProviderEnv(t *testing.T, handler http.Handler) (*google.Provider, *connection.Registry, *sqlc.Queries) {
+	t.Helper()
+	path := t.TempDir() + "/test.db"
+	conn, err := db.Open(path)
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	t.Cleanup(func() { _ = conn.Close() })
+	if err := db.Migrate(conn); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+
+	server := httptest.NewServer(handler)
+	t.Cleanup(server.Close)
+
+	store := secrets.NewMemoryStore()
+	cfg := google.OAuthConfig("client-id", "client-secret")
+	reg := connection.NewRegistry(conn)
+	q := sqlc.New(conn)
+
+	return &google.Provider{
+		Config:   cfg,
+		Store:    store,
+		Registry: reg,
+		Queries:  q,
+		BaseURL:  server.URL,
+	}, reg, q
+}
+
+func TestConnectUpsertsConnection(t *testing.T) {
+	p, reg, _ := newProviderEnv(t, http.NotFoundHandler())
+	p.Authorizer = stubAuthorizer{
+		result: oauth.Result{
+			Provider:  service.ProviderGoogle,
+			AccountID: "user@example.com",
+			Token:     secrets.Token{AccessToken: "access"},
+			Scopes:    []string{"https://www.googleapis.com/auth/calendar.readonly"},
+		},
+	}
+
+	ctx := context.Background()
+	got, err := p.Connect(ctx, "user@example.com", "Work Google")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Status != connection.StatusConnected {
+		t.Fatalf("status: %q", got.Status)
+	}
+	if got.AccountLabel != "Work Google" {
+		t.Fatalf("label: %q", got.AccountLabel)
+	}
+
+	stored, err := reg.Get(ctx, service.ProviderGoogle, "user@example.com")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stored.AccountLabel != "Work Google" {
+		t.Fatalf("stored label: %q", stored.AccountLabel)
+	}
+
+	token, err := p.Store.Get(service.ProviderGoogle, "user@example.com")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if token.AccessToken != "access" {
+		t.Fatalf("token: %+v", token)
+	}
+}
+
+func TestSyncCalendarsPaginatesAndUpserts(t *testing.T) {
+	var calls int
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/users/me/calendarList" {
+			http.NotFound(w, r)
+			return
+		}
+		calls++
+		if r.URL.Query().Get("pageToken") == "" {
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"items": []map[string]any{
+					{"id": "primary", "summary": "Primary", "primary": true},
+				},
+				"nextPageToken": "page-2",
+			})
+			return
+		}
+		if r.URL.Query().Get("pageToken") != "page-2" {
+			t.Fatalf("unexpected page token: %q", r.URL.Query().Get("pageToken"))
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"items": []map[string]any{
+				{"id": "team@example.com", "summary": "Team"},
+			},
+		})
+	})
+
+	p, _, q := newProviderEnv(t, handler)
+	_ = p.Store.Set(service.ProviderGoogle, "user@example.com", secrets.Token{AccessToken: "token"})
+
+	cals, err := p.SyncCalendars(context.Background(), "user@example.com")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if calls != 2 {
+		t.Fatalf("calendar list calls: %d", calls)
+	}
+	if len(cals) != 2 {
+		t.Fatalf("calendars: %d", len(cals))
+	}
+
+	primary, err := q.GetCalendarByProviderExternalID(context.Background(), sqlc.GetCalendarByProviderExternalIDParams{
+		Provider: service.ProviderGoogle, ExternalID: "primary",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if primary.Name != "Primary" || primary.IsPrimary != 1 {
+		t.Fatalf("primary calendar: %+v", primary)
+	}
+}
+
+func TestFetchEventsMapsTimedRecurringAllDayAndPagination(t *testing.T) {
+	var eventCalls int
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.URL.Path == "/calendars/primary/events":
+			eventCalls++
+			if r.URL.Query().Get("pageToken") == "" {
+				assertQuery(t, r.URL.Query(), map[string]string{
+					"singleEvents": "true",
+					"orderBy":      "startTime",
+					"timeMin":      "2026-06-01T00:00:00Z",
+					"timeMax":      "2026-06-15T00:00:00Z",
+				})
+				_ = json.NewEncoder(w).Encode(map[string]any{
+					"items": []map[string]any{
+						{
+							"id":                "evt-recurring",
+							"recurringEventId":  "series-1",
+							"iCalUID":           "uid-recurring@google.com",
+							"summary":           "Weekly sync",
+							"start":             map[string]string{"dateTime": "2026-06-02T13:00:00-04:00", "timeZone": "America/Toronto"},
+							"end":               map[string]string{"dateTime": "2026-06-02T13:30:00-04:00", "timeZone": "America/Toronto"},
+							"originalStartTime": map[string]string{"dateTime": "2026-06-02T14:00:00-04:00", "timeZone": "America/Toronto"},
+							"organizer":         map[string]string{"email": "boss@example.com", "displayName": "Boss"},
+							"attendees": []map[string]any{
+								{"email": "user@example.com", "self": true, "responseStatus": "accepted"},
+								{"email": "peer@example.com", "responseStatus": "tentative"},
+							},
+						},
+						{
+							"id":      "evt-allday",
+							"iCalUID": "uid-allday@google.com",
+							"summary": "Holiday",
+							"start":   map[string]string{"date": "2026-06-03", "timeZone": "America/Toronto"},
+							"end":     map[string]string{"date": "2026-06-04", "timeZone": "America/Toronto"},
+						},
+					},
+					"nextPageToken": "events-2",
+				})
+				return
+			}
+			if r.URL.Query().Get("pageToken") != "events-2" {
+				t.Fatalf("unexpected events page token: %q", r.URL.Query().Get("pageToken"))
+			}
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"items": []map[string]any{
+					{
+						"id":      "evt-cancelled",
+						"summary": "Cancelled",
+						"status":  "cancelled",
+						"start":   map[string]string{"dateTime": "2026-06-05T10:00:00Z"},
+						"end":     map[string]string{"dateTime": "2026-06-05T11:00:00Z"},
+					},
+				},
+			})
+		default:
+			http.NotFound(w, r)
+		}
+	})
+
+	p, _, _ := newProviderEnv(t, handler)
+	_ = p.Store.Set(service.ProviderGoogle, "user@example.com", secrets.Token{AccessToken: "token"})
+
+	cal := sqlc.Calendar{ID: 42, Provider: service.ProviderGoogle, ExternalID: "primary", Name: "Primary"}
+	events, err := p.FetchEvents(context.Background(), "user@example.com", "2026-06-01", "2026-06-14", []sqlc.Calendar{cal})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if eventCalls != 2 {
+		t.Fatalf("event list calls: %d", eventCalls)
+	}
+	if len(events) != 2 {
+		t.Fatalf("events: %d", len(events))
+	}
+
+	recurring := events[0]
+	if recurring.ExternalID != "evt-recurring" || recurring.RecurringEventID != "series-1" {
+		t.Fatalf("recurring ids: %+v", recurring)
+	}
+	if recurring.InstanceID != "2026-06-02T18:00:00Z" {
+		t.Fatalf("instance id: %q", recurring.InstanceID)
+	}
+	if recurring.ICalUID != "uid-recurring@google.com" {
+		t.Fatalf("ical uid: %q", recurring.ICalUID)
+	}
+	if recurring.Status != "accepted" {
+		t.Fatalf("self status: %q", recurring.Status)
+	}
+	if recurring.Organizer != "Boss" {
+		t.Fatalf("organizer: %q", recurring.Organizer)
+	}
+	if recurring.OriginalTz != "America/Toronto" {
+		t.Fatalf("tz: %q", recurring.OriginalTz)
+	}
+	if recurring.Start == nil || !recurring.Start.Equal(time.Date(2026, 6, 2, 17, 0, 0, 0, time.UTC)) {
+		t.Fatalf("start: %+v", recurring.Start)
+	}
+	if len(recurring.Attendees) != 2 || recurring.Attendees[1].ResponseStatus != "tentative" {
+		t.Fatalf("attendees: %+v", recurring.Attendees)
+	}
+
+	allDay := events[1]
+	if !allDay.AllDay || allDay.StartDate != "2026-06-03" || allDay.EndDate != "2026-06-04" {
+		t.Fatalf("all-day mapping: %+v", allDay)
+	}
+	if allDay.ICalUID != "uid-allday@google.com" {
+		t.Fatalf("all-day ical uid: %q", allDay.ICalUID)
+	}
+}
+
+func TestFetchEventsPropagatesAPIError(t *testing.T) {
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusForbidden)
+		_, _ = w.Write([]byte(`{"error":"forbidden"}`))
+	})
+	p, _, _ := newProviderEnv(t, handler)
+	_ = p.Store.Set(service.ProviderGoogle, "user@example.com", secrets.Token{AccessToken: "token"})
+
+	_, err := p.FetchEvents(
+		context.Background(),
+		"user@example.com",
+		"2026-06-01",
+		"2026-06-14",
+		[]sqlc.Calendar{{ID: 1, ExternalID: "primary"}},
+	)
+	if err == nil || !strings.Contains(err.Error(), "forbidden") {
+		t.Fatalf("expected api error, got %v", err)
+	}
+}
+
+func TestDisconnectRemovesTokenAndConnection(t *testing.T) {
+	p, reg, _ := newProviderEnv(t, http.NotFoundHandler())
+	ctx := context.Background()
+
+	p.Authorizer = stubAuthorizer{
+		result: oauth.Result{
+			Provider:  service.ProviderGoogle,
+			AccountID: "user@example.com",
+			Token:     secrets.Token{AccessToken: "access"},
+			Scopes:    []string{"calendar.readonly"},
+		},
+	}
+	if _, err := p.Connect(ctx, "user@example.com", "Work"); err != nil {
+		t.Fatal(err)
+	}
+	if err := p.Disconnect(ctx, "user@example.com"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := reg.Get(ctx, service.ProviderGoogle, "user@example.com"); err == nil {
+		t.Fatal("expected connection removed")
+	}
+	if _, err := p.Store.Get(service.ProviderGoogle, "user@example.com"); err == nil {
+		t.Fatal("expected token removed")
+	}
+}
+
+func assertQuery(t *testing.T, got url.Values, want map[string]string) {
+	t.Helper()
+	for k, v := range want {
+		if got.Get(k) != v {
+			t.Fatalf("query %s: got %q want %q", k, got.Get(k), v)
+		}
+	}
+}
