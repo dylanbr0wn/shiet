@@ -2,6 +2,7 @@ package httpclient
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -40,8 +41,7 @@ func (c *Client) Do(ctx context.Context, req *http.Request) (*http.Response, err
 
 	token, err := c.Store.Get(c.Provider, c.AccountID)
 	if err != nil {
-		c.markNeedsReauth(ctx)
-		return nil, fmt.Errorf("load token: %w", err)
+		return nil, errors.Join(fmt.Errorf("load token: %w", err), c.markNeedsReauth(ctx))
 	}
 
 	var lastResp *http.Response
@@ -63,13 +63,14 @@ func (c *Client) Do(ctx context.Context, req *http.Request) (*http.Response, err
 		if resp.StatusCode == http.StatusUnauthorized {
 			resp.Body.Close()
 			if refreshed {
-				c.markNeedsReauth(ctx)
-				return nil, fmt.Errorf("unauthorized after token refresh")
+				return nil, errors.Join(
+					fmt.Errorf("unauthorized after token refresh"),
+					c.markNeedsReauth(ctx),
+				)
 			}
 			next, refreshErr := c.refreshToken(ctx, token)
 			if refreshErr != nil {
-				c.markNeedsReauth(ctx)
-				return nil, refreshErr
+				return nil, errors.Join(refreshErr, c.markNeedsReauth(ctx))
 			}
 			token = next
 			refreshed = true
@@ -110,11 +111,11 @@ func (c *Client) refreshToken(ctx context.Context, current secrets.Token) (secre
 	return next, nil
 }
 
-func (c *Client) markNeedsReauth(ctx context.Context) {
+func (c *Client) markNeedsReauth(ctx context.Context) error {
 	if c.Registry == nil {
-		return
+		return nil
 	}
-	_ = c.Registry.SetStatus(ctx, c.Provider, c.AccountID, connection.StatusNeedsReauth)
+	return c.Registry.SetStatus(ctx, c.Provider, c.AccountID, connection.StatusNeedsReauth)
 }
 
 func formatBearer(token secrets.Token) string {

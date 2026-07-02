@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/dylanbr0wn/clockr/internal/integration/secrets"
@@ -109,7 +110,10 @@ func (f *Flow) Authorize(ctx context.Context, accountID string) (Result, error) 
 		}),
 	}
 
+	var serveWG sync.WaitGroup
+	serveWG.Add(1)
 	go func() {
+		defer serveWG.Done()
 		if serveErr := srv.Serve(ln); serveErr != nil && !errors.Is(serveErr, http.ErrServerClosed) {
 			errCh <- serveErr
 		}
@@ -120,7 +124,7 @@ func (f *Flow) Authorize(ctx context.Context, accountID string) (Result, error) 
 		open = browser.OpenURL
 	}
 	if err := open(authURL); err != nil {
-		_ = srv.Shutdown(context.Background())
+		shutdownAndWait(srv, &serveWG)
 		return Result{}, fmt.Errorf("open browser: %w", err)
 	}
 
@@ -130,17 +134,15 @@ func (f *Flow) Authorize(ctx context.Context, accountID string) (Result, error) 
 	var code string
 	select {
 	case <-waitCtx.Done():
-		_ = srv.Shutdown(context.Background())
+		shutdownAndWait(srv, &serveWG)
 		return Result{}, fmt.Errorf("oauth timed out: %w", waitCtx.Err())
 	case err := <-errCh:
-		_ = srv.Shutdown(context.Background())
+		shutdownAndWait(srv, &serveWG)
 		return Result{}, err
 	case code = <-codeCh:
 	}
 
-	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), shutdownGrace)
-	defer shutdownCancel()
-	_ = srv.Shutdown(shutdownCtx)
+	shutdownAndWait(srv, &serveWG)
 
 	oauthTok, err := oauthCfg.Exchange(ctx, code, oauth2.VerifierOption(verifier))
 	if err != nil {
@@ -158,6 +160,22 @@ func (f *Flow) Authorize(ctx context.Context, accountID string) (Result, error) 
 		Token:     token,
 		Scopes:    append([]string(nil), f.Config.Scopes...),
 	}, nil
+}
+
+func shutdownAndWait(srv *http.Server, serveWG *sync.WaitGroup) {
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), shutdownGrace)
+	defer cancel()
+	_ = srv.Shutdown(shutdownCtx)
+
+	done := make(chan struct{})
+	go func() {
+		serveWG.Wait()
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-shutdownCtx.Done():
+	}
 }
 
 func listenLoopback() (net.Listener, string, error) {
