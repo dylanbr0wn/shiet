@@ -138,6 +138,12 @@ func (a *App) ComputeGaps(periodID int64) ([]service.DayTimeline, error) {
 	return a.Svc.ComputeGaps(a.callContext(), periodID)
 }
 
+// SuggestGapFill proposes a category and description for an uncovered interval
+// using aggregated activity evidence and the configured AI model.
+func (a *App) SuggestGapFill(window service.TimeWindow) (service.GapSuggestion, error) {
+	return a.Svc.SuggestGapFill(a.callContext(), window)
+}
+
 // GetSetting returns a raw JSON setting value.
 func (a *App) GetSetting(key string) (string, error) {
 	return a.Svc.GetSetting(a.callContext(), key)
