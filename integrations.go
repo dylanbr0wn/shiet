@@ -44,5 +44,8 @@ func wireIntegrations(conn *sql.DB, svc *service.Service) (*google.Provider, *co
 		Puller:      provider,
 		Connections: connectionAdapter{reg: registry},
 	})
+	svc.SetEvidence(service.EvidenceConfig{
+		Providers: nil, // Slack/GitHub/Bitbucket providers wired in follow-up tickets.
+	})
 	return provider, registry
 }

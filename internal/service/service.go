@@ -26,6 +26,7 @@ type Service struct {
 	db           *sql.DB
 	q            *sqlc.Queries
 	calendarSync *CalendarSyncConfig
+	evidence     *EvidenceConfig
 }
 
 // New builds a Service over an open database connection.
