@@ -33,6 +33,17 @@ auto-migrated and seeded on startup. There are no separate backing services to r
 - `go.mod` pins `go 1.26.2` (via toolchain). `wails doctor` may print an older base Go version; the
   module toolchain still drives actual builds.
 
+### CI (GitHub Actions)
+
+`.github/workflows/ci.yml` runs on every PR and push to `main`:
+
+| Job | Command |
+|-----|---------|
+| Go tests | `go test ./internal/...` |
+| Frontend tests | `pnpm -C frontend install --frozen-lockfile && pnpm -C frontend test` |
+
+Lint is not gated in CI yet (2 pre-existing `react-refresh/only-export-components` errors in shadcn `tabs`/`toggle`).
+
 ### Common commands
 - Run app (dev, HMR on http://localhost:5173): `DISPLAY=:1 wails dev -tags webkit2_41`
 - Build binary (`build/bin/`): `wails build -tags webkit2_41`
