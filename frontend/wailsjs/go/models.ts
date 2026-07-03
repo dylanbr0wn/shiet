@@ -335,6 +335,18 @@ export namespace service {
 		    return a;
 		}
 	}
+	export class EvidenceConfig {
+	    Providers: any[];
+	
+	    static createFrom(source: any = {}) {
+	        return new EvidenceConfig(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.Providers = source["Providers"];
+	    }
+	}
 	export class GapFill {
 	    id: number;
 	    periodId: number;
@@ -589,24 +601,6 @@ export namespace service {
 	        this.flagged = source["flagged"];
 	    }
 	}
-	export class TzSegment {
-	    id: number;
-	    periodId: number;
-	    effectiveFromDate: string;
-	    ianaTz: string;
-	
-	    static createFrom(source: any = {}) {
-	        return new TzSegment(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.id = source["id"];
-	        this.periodId = source["periodId"];
-	        this.effectiveFromDate = source["effectiveFromDate"];
-	        this.ianaTz = source["ianaTz"];
-	    }
-	}
 	export class TimeWindow {
 	    // Go type: time
 	    start: any;
@@ -640,6 +634,24 @@ export namespace service {
 		    }
 		    return a;
 		}
+	}
+	export class TzSegment {
+	    id: number;
+	    periodId: number;
+	    effectiveFromDate: string;
+	    ianaTz: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new TzSegment(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.periodId = source["periodId"];
+	        this.effectiveFromDate = source["effectiveFromDate"];
+	        this.ianaTz = source["ianaTz"];
+	    }
 	}
 
 }

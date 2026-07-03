@@ -10,6 +10,10 @@ export function ComputeGaps(arg1, arg2) {
   return window['go']['service']['Service']['ComputeGaps'](arg1, arg2);
 }
 
+export function CreateGapFill(arg1, arg2) {
+  return window['go']['service']['Service']['CreateGapFill'](arg1, arg2);
+}
+
 export function CreateManualEvent(arg1, arg2) {
   return window['go']['service']['Service']['CreateManualEvent'](arg1, arg2);
 }
@@ -106,8 +110,16 @@ export function SetCalendarSync(arg1) {
   return window['go']['service']['Service']['SetCalendarSync'](arg1);
 }
 
+export function SetEvidence(arg1) {
+  return window['go']['service']['Service']['SetEvidence'](arg1);
+}
+
 export function SetSetting(arg1, arg2, arg3) {
   return window['go']['service']['Service']['SetSetting'](arg1, arg2, arg3);
+}
+
+export function SuggestGapFill(arg1, arg2) {
+  return window['go']['service']['Service']['SuggestGapFill'](arg1, arg2);
 }
 
 export function SyncEvents(arg1, arg2, arg3) {
