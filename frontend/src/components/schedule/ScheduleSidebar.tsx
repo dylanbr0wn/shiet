@@ -1,9 +1,13 @@
+import { useMemo } from "react";
+import { ExportActions } from "@/components/export/ExportActions";
 import {
   Card,
   CardContent,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Separator } from "@/components/ui/separator";
+import { buildPeriodExportSummary } from "@/lib/export";
 import { formatMinutes } from "@/lib/scheduler";
 import {
   errorMessage,
@@ -12,9 +16,11 @@ import {
   type ScheduleChange,
 } from "@/lib/schedule";
 import type { Period } from "@/lib/api";
+import type { ScheduleItem } from "@/lib/schedule/types";
 
 interface ScheduleSidebarProps {
   activePeriod: Period | null;
+  items: ScheduleItem[];
   visibleDayCount: number;
   totals: Record<string, number>;
   preview: ScheduleChange | null;
@@ -30,6 +36,7 @@ interface ScheduleSidebarProps {
 
 export function ScheduleSidebar({
   activePeriod,
+  items,
   visibleDayCount,
   totals,
   preview,
@@ -37,6 +44,14 @@ export function ScheduleSidebar({
   isBackendLoading,
   backendError,
 }: ScheduleSidebarProps) {
+  const exportSummary = useMemo(() => {
+    if (!activePeriod) {
+      return null;
+    }
+
+    return buildPeriodExportSummary(items, activePeriod);
+  }, [activePeriod, items]);
+
   return (
     <div className="flex flex-col gap-4">
       <Card className="app-no-drag min-h-0 space-y-4 overflow-auto overscroll-none">
@@ -56,6 +71,20 @@ export function ScheduleSidebar({
                 </span>
               </div>
             ))}
+          </div>
+          <Separator className="my-4" />
+          <div>
+            <h2 className="text-sm font-semibold text-foreground">Export</h2>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Copy this period summary or save the category-by-day CSV.
+            </p>
+            <div className="mt-3">
+              <ExportActions
+                summary={exportSummary}
+                disabled={!activePeriod || isBackendLoading}
+                layout="stacked"
+              />
+            </div>
           </div>
           <div className="border-t border-border pt-4">
             <h2 className="text-sm font-semibold text-foreground">Preview</h2>
