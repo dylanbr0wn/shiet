@@ -161,7 +161,7 @@ func (s *Service) SyncEvents(ctx context.Context, periodID int64, incoming []Inc
 			if created {
 				res.Flagged++
 			}
-			if action == ReviewActionDropEntry {
+			if action == ReviewActionDropEntry || action == ReviewActionKeepEntry {
 				if err := s.resolveDeletedCategorized(ctx, q, sqlc.ReviewItem{
 					PeriodID: periodID,
 					Kind:     reviewDeletedCategoriz,
@@ -169,7 +169,9 @@ func (s *Service) SyncEvents(ctx context.Context, periodID int64, incoming []Inc
 				}, action); err != nil {
 					return res, err
 				}
-				res.Removed++
+				if action == ReviewActionDropEntry {
+					res.Removed++
+				}
 			}
 		} else {
 			if err := q.DeleteEvent(ctx, e.ID); err != nil {

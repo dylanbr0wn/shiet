@@ -110,7 +110,10 @@ func (s *Service) resolveDeletedCategorized(ctx context.Context, q *sqlc.Queries
 
 	switch action {
 	case ReviewActionKeepEntry:
-		return nil
+		if err := s.convertEventToManualFill(ctx, q, ev); err != nil {
+			return err
+		}
+		return markEventExcluded(ctx, q, ev)
 	case ReviewActionDropEntry:
 		if err := s.deleteCategoryOverlay(ctx, q, ev); err != nil {
 			return err
@@ -119,6 +122,49 @@ func (s *Service) resolveDeletedCategorized(ctx context.Context, q *sqlc.Queries
 	default:
 		return fmt.Errorf("unsupported action %q for deleted_categorized", action)
 	}
+}
+
+func (s *Service) convertEventToManualFill(ctx context.Context, q *sqlc.Queries, ev sqlc.Event) error {
+	if ev.AllDay != 0 || !ev.StartUtc.Valid || !ev.EndUtc.Valid {
+		return fmt.Errorf("convert deleted event to manual: event %d is not a timed event", ev.ID)
+	}
+
+	categoryID := sql.NullInt64{}
+	o, err := q.GetOverlay(ctx, sqlc.GetOverlayParams{
+		PeriodID:   ev.PeriodID,
+		Provider:   ev.Provider,
+		ExternalID: ev.ExternalID,
+		InstanceID: ev.InstanceID,
+		Kind:       overlayKindCategory,
+	})
+	if errors.Is(err, sql.ErrNoRows) {
+		// A deleted_categorized review item should have a category overlay, but
+		// preserve the user's entry even if the overlay was removed meanwhile.
+	} else if err != nil {
+		return mapErr("get category overlay", err)
+	} else {
+		categoryID = o.CategoryID
+	}
+
+	day, err := eventLocalDay(ctx, q, ev)
+	if err != nil {
+		return err
+	}
+	if _, err := q.CreateGapFill(ctx, sqlc.CreateGapFillParams{
+		PeriodID:   ev.PeriodID,
+		Day:        day,
+		StartUtc:   parseTime(ev.StartUtc.String).Format(time.RFC3339),
+		EndUtc:     parseTime(ev.EndUtc.String).Format(time.RFC3339),
+		CategoryID: categoryID,
+		Note:       ev.Title,
+		Source:     "manual",
+	}); err != nil {
+		return mapErr("create manual copy of deleted event", err)
+	}
+	if err := s.deleteCategoryOverlay(ctx, q, ev); err != nil {
+		return err
+	}
+	return nil
 }
 
 func (s *Service) resolveNewInGap(ctx context.Context, q *sqlc.Queries, item sqlc.ReviewItem, action string) error {
@@ -202,6 +248,49 @@ func hasStatusExcluded(ctx context.Context, q *sqlc.Queries, ev sqlc.Event) (boo
 		return false, mapErr("get status overlay", err)
 	}
 	return o.Note == overlayStatusExclude, nil
+}
+
+func eventLocalDay(ctx context.Context, q *sqlc.Queries, ev sqlc.Event) (string, error) {
+	start := parseTime(ev.StartUtc.String)
+	if start.IsZero() {
+		return "", fmt.Errorf("event %d has invalid start time", ev.ID)
+	}
+	segs, err := q.ListTzSegments(ctx, ev.PeriodID)
+	if err != nil {
+		return "", mapErr("list timezone segments", err)
+	}
+	if len(segs) == 0 {
+		return "", fmt.Errorf("period %d has no timezone segment", ev.PeriodID)
+	}
+
+	// Bootstrap with the UTC date, then re-check after converting through the
+	// active timezone in case the local date differs from the UTC date.
+	date := start.UTC().Format("2006-01-02")
+	for i := 0; i < 2; i++ {
+		seg := activeSQLCTzSegment(segs, date)
+		loc, err := time.LoadLocation(seg.IanaTz)
+		if err != nil {
+			return "", fmt.Errorf("load timezone %q: %w", seg.IanaTz, err)
+		}
+		next := start.In(loc).Format("2006-01-02")
+		if next == date {
+			return date, nil
+		}
+		date = next
+	}
+	return date, nil
+}
+
+func activeSQLCTzSegment(segs []sqlc.TzSegment, dateStr string) sqlc.TzSegment {
+	active := segs[0]
+	for _, seg := range segs {
+		if seg.EffectiveFromDate <= dateStr {
+			active = seg
+		} else {
+			break
+		}
+	}
+	return active
 }
 
 func (s *Service) deleteCategoryOverlay(ctx context.Context, q *sqlc.Queries, ev sqlc.Event) error {

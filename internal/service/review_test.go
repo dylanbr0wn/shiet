@@ -72,8 +72,28 @@ func TestResolveReviewItem_DeletedCategorizedKeep(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(events) != 1 {
-		t.Fatalf("event should remain, got %+v", events)
+	if len(events) != 0 {
+		t.Fatalf("calendar event should be hidden after manual conversion, got %+v", events)
+	}
+	fills, err := e.svc.ListGapFills(ctx, e.periodID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(fills) != 1 {
+		t.Fatalf("want one manual copy, got %+v", fills)
+	}
+	if fills[0].Source != "manual" || fills[0].Note != "Standup" || fills[0].CategoryID == nil || *fills[0].CategoryID != e.catID {
+		t.Fatalf("manual copy did not preserve event title/category: %+v", fills[0])
+	}
+	if err := e.svc.DeleteManualEvent(ctx, service.ManualEventDeleteInput{ID: fills[0].ID, PeriodID: e.periodID}); err != nil {
+		t.Fatalf("manual copy should be deletable: %v", err)
+	}
+	fills, err = e.svc.ListGapFills(ctx, e.periodID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(fills) != 0 {
+		t.Fatalf("manual copy should be deleted, got %+v", fills)
 	}
 
 	if _, err := e.svc.SyncEvents(ctx, e.periodID, []service.IncomingEvent{}); err != nil {
