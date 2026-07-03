@@ -4,19 +4,25 @@ import type {
   SchedulerChange,
 } from "@/lib/scheduler";
 
-export type ScheduleKind = "calendar" | "gap" | "manual" | "review" | "uncovered";
+export type ScheduleKind = "calendar" | "gap" | "manual" | "review";
 
 export interface ScheduleMetadata {
   title: string;
   category: string;
   kind: ScheduleKind;
-  /** UTC RFC3339 bounds for uncovered gaps (used by AI suggest). */
-  gapWindowStart?: string;
-  gapWindowEnd?: string;
 }
 
 export interface ScheduleDayMetadata {
   isWeekend: boolean;
+}
+
+export interface ScheduleGapOverlay {
+  id: string;
+  day: string;
+  startMinutes: number;
+  endMinutes: number;
+  gapWindowStart: string;
+  gapWindowEnd: string;
 }
 
 export type ScheduleItem = SchedulerItem<ScheduleMetadata>;

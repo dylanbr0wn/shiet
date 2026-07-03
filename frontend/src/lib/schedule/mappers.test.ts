@@ -8,7 +8,7 @@ import type {
 import {
   eventToSchedulerItem,
   gapFillToSchedulerItem,
-  gapIntervalToSchedulerItem,
+  gapIntervalToOverlay,
   periodContainsDate,
 } from "./mappers";
 
@@ -126,7 +126,7 @@ describe("schedule mappers", () => {
 
   it("maps uncovered gap intervals for the schedule overlay", () => {
     expect(
-      gapIntervalToSchedulerItem(
+      gapIntervalToOverlay(
         "2026-06-09",
         {
           start: "2026-06-09T18:00:00Z",
@@ -139,12 +139,8 @@ describe("schedule mappers", () => {
       day: "2026-06-09",
       startMinutes: 11 * 60,
       endMinutes: 13 * 60,
-      disabled: true,
-      metadata: {
-        kind: "uncovered",
-        gapWindowStart: "2026-06-09T18:00:00.000Z",
-        gapWindowEnd: "2026-06-09T20:00:00.000Z",
-      },
+      gapWindowStart: "2026-06-09T18:00:00.000Z",
+      gapWindowEnd: "2026-06-09T20:00:00.000Z",
     });
   });
 

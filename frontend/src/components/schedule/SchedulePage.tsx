@@ -24,6 +24,7 @@ export function SchedulePage({ titlebarPaddingClass }: SchedulePageProps) {
         <ScheduleTimeline
           days={schedule.days}
           items={schedule.items}
+          visibleGaps={schedule.visibleGaps}
           resettableDays={schedule.resettableDays}
           visibleDayCount={schedule.visibleDayCount}
           aiConfigured={schedule.aiConfigured}

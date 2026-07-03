@@ -11,14 +11,17 @@ import {
   SCHEDULE_END_MINUTES,
   SCHEDULE_START_MINUTES,
 } from "./constants";
-import { formatDuration } from "./formatters";
 import {
   activeTimeZoneForDay,
   toDate,
   zonedDateTimeParts,
   zonedPosition,
 } from "./timezone";
-import type { ScheduleItem, SchedulePlacement } from "./types";
+import type {
+  ScheduleGapOverlay,
+  ScheduleItem,
+  SchedulePlacement,
+} from "./types";
 
 export function categoryName(
   categoryId: number | undefined,
@@ -148,11 +151,11 @@ function intervalUtcValue(value: string | Date | undefined) {
   return date?.toISOString() ?? null;
 }
 
-export function gapIntervalToSchedulerItem(
+export function gapIntervalToOverlay(
   day: string,
   interval: Interval,
   tzSegments: TzSegment[],
-): ScheduleItem | null {
+): ScheduleGapOverlay | null {
   const startIso = intervalUtcValue(interval.start);
   const endIso = intervalUtcValue(interval.end);
   const startDate = toDate(startIso ?? undefined);
@@ -168,36 +171,29 @@ export function gapIntervalToSchedulerItem(
   const startMinutes = start.minutes;
   const endMinutes =
     end.day === start.day ? end.minutes : SCHEDULE_END_MINUTES;
-  const durationMinutes = Math.max(15, endMinutes - startMinutes);
 
   return {
     id: `gap-${day}-${startIso}-${endIso}`,
     day,
     startMinutes,
     endMinutes: Math.max(startMinutes + 15, endMinutes),
-    disabled: true,
-    metadata: {
-      title: `${formatDuration(durationMinutes)} gap`,
-      category: "Uncategorized",
-      kind: "uncovered",
-      gapWindowStart: startIso,
-      gapWindowEnd: endIso,
-    },
+    gapWindowStart: startIso,
+    gapWindowEnd: endIso,
   };
 }
 
-export function gapTimelineToSchedulerItems(
+export function gapTimelineToOverlays(
   timelines: DayTimeline[],
   visibleDays: ReadonlySet<string>,
   tzSegments: TzSegment[],
-): ScheduleItem[] {
+): ScheduleGapOverlay[] {
   return timelines.flatMap((timeline) => {
     if (!visibleDays.has(timeline.date)) {
       return [];
     }
 
     return timeline.gaps
-      .map((gap) => gapIntervalToSchedulerItem(timeline.date, gap, tzSegments))
-      .filter((item): item is ScheduleItem => item !== null);
+      .map((gap) => gapIntervalToOverlay(timeline.date, gap, tzSegments))
+      .filter((gap): gap is ScheduleGapOverlay => gap !== null);
   });
 }

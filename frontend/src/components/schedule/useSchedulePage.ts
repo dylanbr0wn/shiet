@@ -33,12 +33,13 @@ import {
   defaultTimeZone,
   eventToSchedulerItem,
   gapFillToSchedulerItem,
-  gapTimelineToSchedulerItems,
+  gapTimelineToOverlays,
   localDateKey,
   periodContainsDate,
   periodDayCount,
   type ScheduleChange,
   type ScheduleDay,
+  type ScheduleGapOverlay,
   type ScheduleItem,
   type SchedulePlacement,
 } from "@/lib/schedule";
@@ -58,6 +59,7 @@ export interface SchedulePageViewModel {
   categories: Category[];
   days: ScheduleDay[];
   items: ScheduleItem[];
+  visibleGaps: ScheduleGapOverlay[];
   resettableDays: ReadonlySet<string>;
   totals: Record<string, number>;
   visibleDayCount: number;
@@ -90,7 +92,7 @@ export interface SchedulePageViewModel {
   gapSuggestError: unknown;
   aiConfigured: boolean;
   aiLocal: boolean;
-  handleSelectGap: (item: ScheduleItem) => void;
+  handleSelectGap: (gap: ScheduleGapOverlay) => void;
   handleCloseGapSuggest: () => void;
   handleRetryGapSuggest: () => void;
   handleConfirmGapSuggest: (values: {
@@ -244,17 +246,14 @@ export function useSchedulePage(): SchedulePageViewModel {
     gapFillsQuery.data,
     tzSegmentsQuery.data,
   ]);
-  const gapItems = useMemo(() => {
-    return gapTimelineToSchedulerItems(
+  const visibleGaps = useMemo(() => {
+    return gapTimelineToOverlays(
       gapTimelineQuery.data ?? [],
       visibleDaySet,
       tzSegmentsQuery.data ?? [],
     );
   }, [gapTimelineQuery.data, tzSegmentsQuery.data, visibleDaySet]);
-  const items = useMemo(
-    () => [...backendItems, ...gapItems],
-    [backendItems, gapItems],
-  );
+  const items = backendItems;
   const editingEvent = useMemo(() => {
     if (pendingCreate && activePeriodId) {
       return {
@@ -368,21 +367,13 @@ export function useSchedulePage(): SchedulePageViewModel {
     );
   };
 
-  const handleSelectGap = (item: ScheduleItem) => {
-    if (
-      item.metadata?.kind !== "uncovered" ||
-      !item.metadata.gapWindowStart ||
-      !item.metadata.gapWindowEnd
-    ) {
-      return;
-    }
-
+  const handleSelectGap = (overlay: ScheduleGapOverlay) => {
     const gap: SelectedGap = {
-      day: item.day,
-      startMinutes: item.startMinutes,
-      endMinutes: item.endMinutes,
-      gapWindowStart: item.metadata.gapWindowStart,
-      gapWindowEnd: item.metadata.gapWindowEnd,
+      day: overlay.day,
+      startMinutes: overlay.startMinutes,
+      endMinutes: overlay.endMinutes,
+      gapWindowStart: overlay.gapWindowStart,
+      gapWindowEnd: overlay.gapWindowEnd,
     };
 
     setPendingCreate(null);
@@ -648,6 +639,7 @@ export function useSchedulePage(): SchedulePageViewModel {
     categories,
     days,
     items,
+    visibleGaps,
     resettableDays,
     totals,
     visibleDayCount,

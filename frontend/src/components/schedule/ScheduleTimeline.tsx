@@ -26,11 +26,13 @@ import {
   WORKING_END_MINUTES,
   WORKING_START_MINUTES,
   durationLabel,
+  formatDuration,
   formatTimeRange,
   kindClasses,
   type ScheduleChange,
   type ScheduleDay,
   type ScheduleDayMetadata,
+  type ScheduleGapOverlay,
   type ScheduleItem,
   type ScheduleMetadata,
 } from "@/lib/schedule";
@@ -38,6 +40,7 @@ import {
 interface ScheduleTimelineProps {
   days: ScheduleDay[];
   items: ScheduleItem[];
+  visibleGaps: ScheduleGapOverlay[];
   resettableDays: ReadonlySet<string>;
   visibleDayCount: number;
   aiConfigured: boolean;
@@ -48,12 +51,13 @@ interface ScheduleTimelineProps {
   onDuplicateItem: (item: ScheduleItem) => void;
   onRemoveItem: (item: ScheduleItem) => void;
   onResetDay: (day: string) => void;
-  onSelectGap: (item: ScheduleItem) => void;
+  onSelectGap: (gap: ScheduleGapOverlay) => void;
 }
 
 export function ScheduleTimeline({
   days,
   items,
+  visibleGaps,
   resettableDays,
   visibleDayCount,
   aiConfigured,
@@ -213,6 +217,9 @@ export function ScheduleTimeline({
               {scheduler.days.map((day) => {
                 const isWeekend = day.metadata?.isWeekend;
                 const canResetDay = resettableDays.has(day.date);
+                const dayGaps = visibleGaps.filter(
+                  (gap) => gap.day === day.date,
+                );
 
                 return (
                   <ContextMenu key={day.date}>
@@ -292,6 +299,52 @@ export function ScheduleTimeline({
                             )}
                           </>
                         )}
+                        {dayGaps.map((gap) => {
+                          const top = minuteToPercent(gap.startMinutes);
+                          const bottom = minuteToPercent(gap.endMinutes);
+                          const height = Math.max(bottom - top, 1);
+
+                          return (
+                            <div
+                              key={gap.id}
+                              className="pointer-events-none absolute inset-x-1 z-[5] rounded-md border border-dashed border-zinc-300 bg-muted/20 px-2 py-1 text-[11px] text-muted-foreground"
+                              style={{
+                                top: `${top}%`,
+                                height: `${height}%`,
+                              }}
+                            >
+                              <div className="flex h-full min-h-7 items-start justify-between gap-1 overflow-hidden">
+                                <span className="truncate pt-0.5">
+                                  {formatDuration(
+                                    gap.endMinutes - gap.startMinutes,
+                                  )}{" "}
+                                  gap
+                                </span>
+                                <button
+                                  type="button"
+                                  data-scheduler-ignore-create=""
+                                  disabled={!aiConfigured}
+                                  className={cn([
+                                    "pointer-events-auto inline-flex shrink-0 items-center gap-1 rounded-full border border-border bg-background/90 px-2 py-0.5 text-[11px] font-medium text-foreground shadow-sm transition-colors",
+                                    aiConfigured
+                                      ? "hover:border-emerald-400 hover:bg-emerald-50 hover:text-emerald-950"
+                                      : "cursor-not-allowed opacity-60",
+                                  ])}
+                                  onClick={(event) => {
+                                    event.preventDefault();
+                                    event.stopPropagation();
+                                    if (aiConfigured) {
+                                      onSelectGap(gap);
+                                    }
+                                  }}
+                                >
+                                  <SparklesIcon className="size-3" />
+                                  Suggest
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })}
                         <SchedulerItemLayer scheduler={scheduler} day={day}>
                           {(layoutItem) => {
                             const item = layoutItem.item;
@@ -318,60 +371,6 @@ export function ScheduleTimeline({
                               ? kindClasses(metadata.kind)
                               : "border-border bg-muted text-foreground";
                             const canMutateItem = item.id.startsWith("gap-fill-");
-                            const isUncoveredGap = metadata?.kind === "uncovered";
-
-                            if (isUncoveredGap) {
-                              return (
-                                <ContextMenu key={item.id}>
-                                  <ContextMenuTrigger asChild>
-                                    <div
-                                      {...scheduler.getItemProps(layoutItem, {
-                                        onClick: (event) => {
-                                          event.preventDefault();
-                                          event.stopPropagation();
-                                          onSelectGap(item);
-                                        },
-                                        onContextMenu: (event) => {
-                                          event.stopPropagation();
-                                        },
-                                        className: [
-                                          "group z-5 flex min-h-10 cursor-pointer flex-col justify-center overflow-hidden rounded-md border px-2 py-1 text-left text-xs shadow-none transition-colors",
-                                          itemClass,
-                                          !aiConfigured
-                                            ? "opacity-60"
-                                            : "hover:border-emerald-400 hover:bg-emerald-50/40",
-                                        ].join(" "),
-                                      })}
-                                    >
-                                      <p className="truncate font-medium text-foreground">
-                                        {metadata?.title ?? "Gap"}
-                                      </p>
-                                      <p className="truncate text-[11px] opacity-75">
-                                        {formatTimeRange(
-                                          item.startMinutes,
-                                          item.endMinutes,
-                                        )}{" "}
-                                        · {durationLabel(item)}
-                                      </p>
-                                      <p className="mt-1 truncate text-[11px] font-medium opacity-80">
-                                        {aiConfigured
-                                          ? "Click for AI suggest"
-                                          : "Configure AI in Settings"}
-                                      </p>
-                                    </div>
-                                  </ContextMenuTrigger>
-                                  <ContextMenuContent data-scheduler-ignore-create="">
-                                    <ContextMenuItem
-                                      disabled={!aiConfigured}
-                                      onSelect={() => onSelectGap(item)}
-                                    >
-                                      <SparklesIcon />
-                                      AI suggest
-                                    </ContextMenuItem>
-                                  </ContextMenuContent>
-                                </ContextMenu>
-                              );
-                            }
 
                             return (
                               <ContextMenu key={item.id}>
