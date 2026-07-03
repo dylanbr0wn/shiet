@@ -7,30 +7,39 @@ import {
 } from "react";
 import {
   useCategories,
+  useClassifyAIEndpoint,
+  useCreateGapFill,
   useCreateManualEvent,
   useCurrentPeriod,
   useDeleteManualEvent,
   useEvents,
   useGapFills,
+  useGapTimeline,
   useOpenReviewItems,
   usePeriods,
+  useSuggestGapFill,
   useTzSegments,
   useUpdateManualEvent,
+  useAIConfigured,
   type Category,
+  type GapSuggestion,
   type Period,
 } from "@/lib/api";
 import type { SchedulerCreateRequest } from "@/lib/scheduler";
+import type { SelectedGap } from "./GapSuggestDialog";
 import {
   START_DATE,
   buildDays,
   defaultTimeZone,
   eventToSchedulerItem,
   gapFillToSchedulerItem,
+  gapTimelineToOverlays,
   localDateKey,
   periodContainsDate,
   periodDayCount,
   type ScheduleChange,
   type ScheduleDay,
+  type ScheduleGapOverlay,
   type ScheduleItem,
   type SchedulePlacement,
 } from "@/lib/schedule";
@@ -50,6 +59,7 @@ export interface SchedulePageViewModel {
   categories: Category[];
   days: ScheduleDay[];
   items: ScheduleItem[];
+  visibleGaps: ScheduleGapOverlay[];
   resettableDays: ReadonlySet<string>;
   totals: Record<string, number>;
   visibleDayCount: number;
@@ -74,6 +84,21 @@ export interface SchedulePageViewModel {
   handleResetDay: (day: string) => void;
   handleCloseEventEditor: () => void;
   handleSaveEventEdit: (values: ScheduleEventEditValues) => void;
+  selectedGap: SelectedGap | null;
+  gapSuggestion: GapSuggestion | null;
+  gapSuggestOpen: boolean;
+  gapSuggestPending: boolean;
+  gapSuggestSaving: boolean;
+  gapSuggestError: unknown;
+  aiConfigured: boolean;
+  aiLocal: boolean;
+  handleSelectGap: (gap: ScheduleGapOverlay) => void;
+  handleCloseGapSuggest: () => void;
+  handleRetryGapSuggest: () => void;
+  handleConfirmGapSuggest: (values: {
+    categoryId?: number;
+    note: string;
+  }) => void;
 }
 
 export interface EditableScheduleEvent {
@@ -108,14 +133,22 @@ export function useSchedulePage(): SchedulePageViewModel {
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
   const [pendingCreate, setPendingCreate] =
     useState<SchedulerCreateRequest | null>(null);
+  const [selectedGap, setSelectedGap] = useState<SelectedGap | null>(null);
+  const [gapSuggestion, setGapSuggestion] = useState<GapSuggestion | null>(
+    null,
+  );
   const today = useMemo(() => localDateKey(), []);
   const currentTimeZone = useMemo(() => defaultTimeZone(), []);
   const periodsQuery = usePeriods();
   const currentPeriodQuery = useCurrentPeriod(today, currentTimeZone);
   const categoriesQuery = useCategories();
   const createManualEventMutation = useCreateManualEvent();
+  const createGapFillMutation = useCreateGapFill();
+  const suggestGapFillMutation = useSuggestGapFill();
   const updateManualEventMutation = useUpdateManualEvent();
   const deleteManualEventMutation = useDeleteManualEvent();
+  const aiConfig = useAIConfigured();
+  const aiClassification = useClassifyAIEndpoint(aiConfig.baseURL);
   const persistedPeriods = useMemo(
     () => periodsQuery.data ?? [],
     [periodsQuery.data],
@@ -147,6 +180,7 @@ export function useSchedulePage(): SchedulePageViewModel {
   const activePeriodId = activePeriod?.id;
   const eventsQuery = useEvents(activePeriodId);
   const gapFillsQuery = useGapFills(activePeriodId);
+  const gapTimelineQuery = useGapTimeline(activePeriodId);
   const reviewItemsQuery = useOpenReviewItems(activePeriodId);
   const tzSegmentsQuery = useTzSegments(activePeriodId);
   const categoriesById = useMemo(() => {
@@ -159,6 +193,10 @@ export function useSchedulePage(): SchedulePageViewModel {
   const days = useMemo(
     () => buildDays(activePeriod?.startDate ?? START_DATE, visibleDayCount),
     [activePeriod?.startDate, visibleDayCount],
+  );
+  const visibleDaySet = useMemo(
+    () => new Set(days.map((day) => day.date)),
+    [days],
   );
   const gapFillsByItemId = useMemo(() => {
     return new Map(
@@ -208,6 +246,13 @@ export function useSchedulePage(): SchedulePageViewModel {
     gapFillsQuery.data,
     tzSegmentsQuery.data,
   ]);
+  const visibleGaps = useMemo(() => {
+    return gapTimelineToOverlays(
+      gapTimelineQuery.data ?? [],
+      visibleDaySet,
+      tzSegmentsQuery.data ?? [],
+    );
+  }, [gapTimelineQuery.data, tzSegmentsQuery.data, visibleDaySet]);
   const items = backendItems;
   const editingEvent = useMemo(() => {
     if (pendingCreate && activePeriodId) {
@@ -247,21 +292,24 @@ export function useSchedulePage(): SchedulePageViewModel {
     };
   }, [activePeriodId, editingItemId, gapFillsByItemId, items, pendingCreate]);
   const totals = useMemo(() => {
-    return items.reduce<Record<string, number>>((next, item) => {
+    return backendItems.reduce<Record<string, number>>((next, item) => {
       const key = item.metadata?.category ?? "Unassigned";
       next[key] = (next[key] ?? 0) + item.endMinutes - item.startMinutes;
       return next;
     }, {});
-  }, [items]);
+  }, [backendItems]);
   const isBackendLoading =
     periodsQuery.isLoading ||
     currentPeriodQuery.isLoading ||
     categoriesQuery.isLoading ||
     eventsQuery.isLoading ||
     gapFillsQuery.isLoading ||
+    gapTimelineQuery.isLoading ||
     reviewItemsQuery.isLoading ||
     tzSegmentsQuery.isLoading ||
     createManualEventMutation.isPending ||
+    createGapFillMutation.isPending ||
+    suggestGapFillMutation.isPending ||
     updateManualEventMutation.isPending ||
     deleteManualEventMutation.isPending;
   const backendError =
@@ -270,9 +318,11 @@ export function useSchedulePage(): SchedulePageViewModel {
     categoriesQuery.error ??
     eventsQuery.error ??
     gapFillsQuery.error ??
+    gapTimelineQuery.error ??
     reviewItemsQuery.error ??
     tzSegmentsQuery.error ??
     createManualEventMutation.error ??
+    createGapFillMutation.error ??
     updateManualEventMutation.error ??
     deleteManualEventMutation.error;
 
@@ -298,7 +348,82 @@ export function useSchedulePage(): SchedulePageViewModel {
     setPreview(null);
     setEditingItemId(null);
     setPendingCreate(null);
+    setSelectedGap(null);
+    setGapSuggestion(null);
   }, [activePeriodId]);
+
+  const requestGapSuggestion = (gap: SelectedGap) => {
+    setGapSuggestion(null);
+    suggestGapFillMutation.mutate(
+      {
+        start: gap.gapWindowStart,
+        end: gap.gapWindowEnd,
+      },
+      {
+        onSuccess: (suggestion) => {
+          setGapSuggestion(suggestion);
+        },
+      },
+    );
+  };
+
+  const handleSelectGap = (overlay: ScheduleGapOverlay) => {
+    const gap: SelectedGap = {
+      day: overlay.day,
+      startMinutes: overlay.startMinutes,
+      endMinutes: overlay.endMinutes,
+      gapWindowStart: overlay.gapWindowStart,
+      gapWindowEnd: overlay.gapWindowEnd,
+    };
+
+    setPendingCreate(null);
+    setEditingItemId(null);
+    setSelectedGap(gap);
+    setGapSuggestion(null);
+
+    if (aiConfig.isConfigured) {
+      requestGapSuggestion(gap);
+    }
+  };
+
+  const handleCloseGapSuggest = () => {
+    setSelectedGap(null);
+    setGapSuggestion(null);
+    suggestGapFillMutation.reset();
+  };
+
+  const handleRetryGapSuggest = () => {
+    if (!selectedGap) {
+      return;
+    }
+
+    requestGapSuggestion(selectedGap);
+  };
+
+  const handleConfirmGapSuggest = (values: {
+    categoryId?: number;
+    note: string;
+  }) => {
+    if (!selectedGap || !activePeriodId) {
+      return;
+    }
+
+    createGapFillMutation.mutate(
+      {
+        periodId: activePeriodId,
+        day: selectedGap.day,
+        startMinutes: selectedGap.startMinutes,
+        endMinutes: selectedGap.endMinutes,
+        categoryId: values.categoryId,
+        note: values.note,
+      },
+      {
+        onSuccess: () => {
+          handleCloseGapSuggest();
+        },
+      },
+    );
+  };
 
   const handleCreate = (request: SchedulerCreateRequest) => {
     if (!activePeriodId) {
@@ -514,6 +639,7 @@ export function useSchedulePage(): SchedulePageViewModel {
     categories,
     days,
     items,
+    visibleGaps,
     resettableDays,
     totals,
     visibleDayCount,
@@ -540,5 +666,17 @@ export function useSchedulePage(): SchedulePageViewModel {
     handleResetDay,
     handleCloseEventEditor,
     handleSaveEventEdit,
+    selectedGap,
+    gapSuggestion,
+    gapSuggestOpen: selectedGap !== null,
+    gapSuggestPending: suggestGapFillMutation.isPending,
+    gapSuggestSaving: createGapFillMutation.isPending,
+    gapSuggestError: suggestGapFillMutation.error,
+    aiConfigured: aiConfig.isConfigured,
+    aiLocal: aiClassification.data?.local ?? false,
+    handleSelectGap,
+    handleCloseGapSuggest,
+    handleRetryGapSuggest,
+    handleConfirmGapSuggest,
   };
 }

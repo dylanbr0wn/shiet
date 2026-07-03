@@ -8,6 +8,8 @@ export function ClassifyAIEndpoint(arg1:string):Promise<boolean|string>;
 
 export function ComputeGaps(arg1:context.Context,arg2:number):Promise<Array<service.DayTimeline>>;
 
+export function CreateGapFill(arg1:context.Context,arg2:service.ManualEventInput):Promise<service.GapFill>;
+
 export function CreateManualEvent(arg1:context.Context,arg2:service.ManualEventInput):Promise<service.GapFill>;
 
 export function DeleteManualEvent(arg1:context.Context,arg2:service.ManualEventDeleteInput):Promise<void>;
@@ -56,7 +58,11 @@ export function SetCalendarSelected(arg1:context.Context,arg2:number,arg3:boolea
 
 export function SetCalendarSync(arg1:service.CalendarSyncConfig):Promise<void>;
 
+export function SetEvidence(arg1:service.EvidenceConfig):Promise<void>;
+
 export function SetSetting(arg1:context.Context,arg2:string,arg3:string):Promise<void>;
+
+export function SuggestGapFill(arg1:context.Context,arg2:service.TimeWindow):Promise<service.GapSuggestion>;
 
 export function SyncEvents(arg1:context.Context,arg2:number,arg3:Array<service.IncomingEvent>):Promise<service.SyncResult>;
 
