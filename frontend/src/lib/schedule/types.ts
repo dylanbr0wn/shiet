@@ -18,6 +18,15 @@ export interface ScheduleDayMetadata {
   isWeekend: boolean;
 }
 
+export interface ScheduleGapOverlay {
+  id: string;
+  day: string;
+  startMinutes: number;
+  endMinutes: number;
+  gapWindowStart: string;
+  gapWindowEnd: string;
+}
+
 export type ScheduleItem = SchedulerItem<ScheduleMetadata>;
 export type ScheduleDay = SchedulerDay<ScheduleDayMetadata>;
 export type ScheduleChange = SchedulerChange<ScheduleMetadata>;

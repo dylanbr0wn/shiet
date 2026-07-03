@@ -8,6 +8,8 @@ export function ClassifyAIEndpoint(arg1:string):Promise<boolean|string>;
 
 export function ComputeGaps(arg1:context.Context,arg2:number):Promise<Array<service.DayTimeline>>;
 
+export function CreateGapFill(arg1:context.Context,arg2:service.ManualEventInput):Promise<service.GapFill>;
+
 export function CreateManualEvent(arg1:context.Context,arg2:service.ManualEventInput):Promise<service.GapFill>;
 
 export function DeleteManualEvent(arg1:context.Context,arg2:service.ManualEventDeleteInput):Promise<void>;

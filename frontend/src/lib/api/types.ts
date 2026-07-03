@@ -163,3 +163,14 @@ export interface AIClassification {
   local: boolean;
   verdict: string;
 }
+
+export interface GapSuggestion {
+  category: string;
+  description: string;
+  evidenceCount: number;
+}
+
+export interface TimeWindow {
+  start: string;
+  end: string;
+}

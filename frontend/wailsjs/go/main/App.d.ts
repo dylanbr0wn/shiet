@@ -11,6 +11,8 @@ export function ComputeGaps(arg1:number):Promise<Array<service.DayTimeline>>;
 
 export function ConnectGoogle(arg1:string,arg2:string):Promise<connection.Connection>;
 
+export function CreateGapFill(arg1:service.ManualEventInput):Promise<main.ManualEventResult>;
+
 export function CreateManualEvent(arg1:service.ManualEventInput):Promise<main.ManualEventResult>;
 
 export function DeleteManualEvent(arg1:service.ManualEventDeleteInput):Promise<main.ManualEventResult>;
@@ -52,6 +54,8 @@ export function SaveAIConfig(arg1:string,arg2:string):Promise<void>;
 export function SaveAIEndpoint(arg1:string):Promise<void>;
 
 export function SaveAIModel(arg1:string):Promise<void>;
+
+export function SaveExportFile(arg1:string,arg2:string):Promise<string>;
 
 export function SetCalendarDefaultCategory(arg1:number,arg2:any):Promise<void>;
 

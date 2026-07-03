@@ -1,10 +1,11 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   AlertTriangleIcon,
   CopyIcon,
   PencilIcon,
   PlusIcon,
   RotateCcwIcon,
+  SparklesIcon,
   Trash2Icon,
 } from "lucide-react";
 import {
@@ -38,6 +39,7 @@ import {
   type ScheduleChange,
   type ScheduleDay,
   type ScheduleDayMetadata,
+  type ScheduleGapOverlay,
   type ScheduleItem,
   type ScheduleMetadata,
 } from "@/lib/schedule";
@@ -45,8 +47,10 @@ import {
 interface ScheduleTimelineProps {
   days: ScheduleDay[];
   items: ScheduleItem[];
+  visibleGaps: ScheduleGapOverlay[];
   resettableDays: ReadonlySet<string>;
   visibleDayCount: number;
+  aiConfigured: boolean;
   onCreate: (request: SchedulerCreateRequest) => void;
   onPreviewChange: (change: ScheduleChange | null) => void;
   onCommitChange: (change: ScheduleChange) => void;
@@ -54,13 +58,16 @@ interface ScheduleTimelineProps {
   onDuplicateItem: (item: ScheduleItem) => void;
   onRemoveItem: (item: ScheduleItem) => void;
   onResetDay: (day: string) => void;
+  onSelectGap: (gap: ScheduleGapOverlay) => void;
 }
 
 export function ScheduleTimeline({
   days,
   items,
+  visibleGaps,
   resettableDays,
   visibleDayCount,
+  aiConfigured,
   onCreate,
   onPreviewChange,
   onCommitChange,
@@ -68,10 +75,12 @@ export function ScheduleTimeline({
   onDuplicateItem,
   onRemoveItem,
   onResetDay,
+  onSelectGap,
 }: ScheduleTimelineProps) {
   const schedulerViewportRef = useRef<HTMLDivElement | null>(null);
   const didSetInitialScrollRef = useRef(false);
   const backgroundRequestRef = useRef<SchedulerCreateRequest | null>(null);
+  const [hoveredGapId, setHoveredGapId] = useState<string | null>(null);
 
   useEffect(() => {
     const viewport = schedulerViewportRef.current;
@@ -216,12 +225,64 @@ export function ScheduleTimeline({
               {scheduler.days.map((day) => {
                 const isWeekend = day.metadata?.isWeekend;
                 const canResetDay = resettableDays.has(day.date);
+                const dayGaps = visibleGaps.filter(
+                  (gap) => gap.day === day.date,
+                );
 
                 return (
                   <ContextMenu key={day.date}>
                     <ContextMenuTrigger asChild>
                       <div
                         {...scheduler.getDayColumnProps(day, {
+                          onMouseMove: (event) => {
+                            const target = event.target;
+
+                            if (!(target instanceof Element)) {
+                              setHoveredGapId(null);
+                              return;
+                            }
+
+                            if (target.closest("[data-scheduler-item]")) {
+                              setHoveredGapId(null);
+                              return;
+                            }
+
+                            if (
+                              target.closest("[data-scheduler-ignore-create]")
+                            ) {
+                              return;
+                            }
+
+                            const rect =
+                              event.currentTarget.getBoundingClientRect();
+                            const percent =
+                              rect.height <= 0
+                                ? 0
+                                : clamp(
+                                    (event.clientY - rect.top) / rect.height,
+                                    0,
+                                    1,
+                                  );
+                            const rawMinutes =
+                              scheduler.visibleRange.startMinutes +
+                              percent *
+                                (scheduler.visibleRange.endMinutes -
+                                  scheduler.visibleRange.startMinutes);
+                            const minute = snapMinutes(
+                              rawMinutes,
+                              scheduler.config.slotMinutes,
+                            );
+                            const hoveredGap = dayGaps.find(
+                              (gap) =>
+                                minute >= gap.startMinutes &&
+                                minute < gap.endMinutes,
+                            );
+
+                            setHoveredGapId(hoveredGap?.id ?? null);
+                          },
+                          onMouseLeave: () => {
+                            setHoveredGapId(null);
+                          },
                           onContextMenu: (event) => {
                             const target = event.target;
 
@@ -295,6 +356,52 @@ export function ScheduleTimeline({
                             )}
                           </>
                         )}
+                        {dayGaps.map((gap) => {
+                          const top = minuteToPercent(gap.startMinutes);
+                          const bottom = minuteToPercent(gap.endMinutes);
+                          const height = Math.max(bottom - top, 1);
+                          const isHovered = hoveredGapId === gap.id;
+
+                          return (
+                            <div
+                              key={gap.id}
+                              className={cn([
+                                "pointer-events-none absolute inset-x-1 z-[5] rounded-md border border-dashed transition-[border-color,background-color,opacity] duration-150",
+                                isHovered
+                                  ? "border-zinc-300/70 bg-muted/10 opacity-100"
+                                  : "border-transparent bg-transparent opacity-0",
+                              ])}
+                              style={{
+                                top: `${top}%`,
+                                height: `${height}%`,
+                              }}
+                            >
+                              <button
+                                type="button"
+                                data-scheduler-ignore-create=""
+                                className={cn([
+                                  "absolute right-1 top-1 inline-flex size-6 items-center justify-center rounded-full border text-muted-foreground transition-[opacity,border-color,background-color,color,box-shadow] duration-150",
+                                  isHovered
+                                    ? "pointer-events-auto border-border/50 bg-background/60 opacity-35 shadow-none"
+                                    : "pointer-events-none border-transparent bg-transparent opacity-0",
+                                  "hover:opacity-100 hover:border-emerald-400/70 hover:bg-emerald-50/90 hover:text-emerald-900 hover:shadow-sm",
+                                ])}
+                                onClick={(event) => {
+                                  event.preventDefault();
+                                  event.stopPropagation();
+                                  onSelectGap(gap);
+                                }}
+                                title={
+                                  aiConfigured
+                                    ? "Suggest gap fill"
+                                    : "Configure AI for suggestions"
+                                }
+                              >
+                                <SparklesIcon className="size-3" />
+                              </button>
+                            </div>
+                          );
+                        })}
                         <SchedulerItemLayer scheduler={scheduler} day={day}>
                           {(layoutItem) => {
                             const item = layoutItem.item;

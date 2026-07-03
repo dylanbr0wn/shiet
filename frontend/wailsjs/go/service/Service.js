@@ -10,6 +10,10 @@ export function ComputeGaps(arg1, arg2) {
   return window['go']['service']['Service']['ComputeGaps'](arg1, arg2);
 }
 
+export function CreateGapFill(arg1, arg2) {
+  return window['go']['service']['Service']['CreateGapFill'](arg1, arg2);
+}
+
 export function CreateManualEvent(arg1, arg2) {
   return window['go']['service']['Service']['CreateManualEvent'](arg1, arg2);
 }

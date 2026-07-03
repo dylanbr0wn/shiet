@@ -8,6 +8,7 @@ import type {
   DayTimeline,
   Event,
   GapFill,
+  GapSuggestion,
   IntegrationConnection,
   ManualEventDeleteInput,
   ManualEventInput,
@@ -18,6 +19,7 @@ import type {
   ResolveReviewItemInput,
   ResolveReviewItemResult,
   SyncResult,
+  TimeWindow,
   TzSegment,
 } from "./types";
 
@@ -25,6 +27,7 @@ interface ClockrApp {
   ClassifyAIEndpoint(baseURL: string): Promise<AIClassification>;
   ComputeGaps(periodId: number): Promise<DayTimeline[]>;
   ConnectGoogle(accountID: string, accountLabel: string): Promise<IntegrationConnection>;
+  CreateGapFill(input: ManualEventInput): Promise<ManualEventResult>;
   CreateManualEvent(input: ManualEventInput): Promise<ManualEventResult>;
   DeleteManualEvent(input: ManualEventDeleteInput): Promise<ManualEventResult>;
   DisconnectGoogle(accountID: string): Promise<void>;
@@ -47,9 +50,11 @@ interface ClockrApp {
   SaveAIConfig(baseURL: string, model: string): Promise<void>;
   SaveAIEndpoint(baseURL: string): Promise<void>;
   SaveAIModel(model: string): Promise<void>;
+  SaveExportFile(defaultFilename: string, content: string): Promise<string>;
   SetCalendarDefaultCategory(calendarID: number, categoryID: number | null): Promise<void>;
   SetCalendarSelected(calendarID: number, selected: boolean): Promise<void>;
   SetSetting(key: string, value: string): Promise<void>;
+  SuggestGapFill(window: TimeWindow): Promise<GapSuggestion>;
   SyncPeriod(periodID: number): Promise<SyncResult>;
   UpdateManualEvent(input: ManualEventUpdateInput): Promise<ManualEventResult>;
   ValidateAIConfig(
@@ -132,6 +137,10 @@ export function listGapFills(periodId: number) {
   return readFromBackend<GapFill[]>([], () =>
     appBackend.ListGapFills(periodId),
   );
+}
+
+export function createGapFill(input: ManualEventInput) {
+  return writeToBackend(() => appBackend.CreateGapFill(input));
 }
 
 export function createManualEvent(input: ManualEventInput) {
@@ -240,6 +249,23 @@ export function saveAIModel(model: string) {
   return writeToBackend(() => appBackend.SaveAIModel(model));
 }
 
+export function saveExportFile(defaultFilename: string, content: string) {
+  if (!isClockrAppAvailable()) {
+    const blob = new Blob([content], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = defaultFilename;
+    anchor.click();
+    URL.revokeObjectURL(url);
+    return Promise.resolve(defaultFilename);
+  }
+
+  return writeToBackend(() =>
+    appBackend.SaveExportFile(defaultFilename, content),
+  );
+}
+
 export function listIntegrationConnections() {
   return readFromBackend<IntegrationConnection[]>([], () =>
     appBackend.ListIntegrationConnections(),
@@ -269,6 +295,10 @@ export function setCalendarDefaultCategory(
   return writeToBackend(() =>
     appBackend.SetCalendarDefaultCategory(calendarID, categoryID),
   );
+}
+
+export function suggestGapFill(window: TimeWindow) {
+  return writeToBackend(() => appBackend.SuggestGapFill(window));
 }
 
 export function syncPeriod(periodID: number) {

@@ -4,11 +4,13 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"os"
 
 	"github.com/dylanbr0wn/clockr/internal/ai"
 	"github.com/dylanbr0wn/clockr/internal/integration/connection"
 	"github.com/dylanbr0wn/clockr/internal/integration/google"
 	"github.com/dylanbr0wn/clockr/internal/service"
+	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 // App struct
@@ -210,6 +212,15 @@ func (a *App) CreateManualEvent(input service.ManualEventInput) (ManualEventResu
 	return ManualEventResult{PeriodID: fill.PeriodID, ID: fill.ID}, nil
 }
 
+// CreateGapFill persists a user-confirmed gap assignment (e.g. from AI suggest).
+func (a *App) CreateGapFill(input service.ManualEventInput) (ManualEventResult, error) {
+	fill, err := a.Svc.CreateGapFill(a.callContext(), input)
+	if err != nil {
+		return ManualEventResult{}, err
+	}
+	return ManualEventResult{PeriodID: fill.PeriodID, ID: fill.ID}, nil
+}
+
 // UpdateManualEvent persists a scheduler edit to an existing manual block.
 func (a *App) UpdateManualEvent(input service.ManualEventUpdateInput) (ManualEventResult, error) {
 	fill, err := a.Svc.UpdateManualEvent(a.callContext(), input)
@@ -225,6 +236,29 @@ func (a *App) DeleteManualEvent(input service.ManualEventDeleteInput) (ManualEve
 		return ManualEventResult{}, err
 	}
 	return ManualEventResult{PeriodID: input.PeriodID, ID: input.ID}, nil
+}
+
+// SaveExportFile writes content to a user-selected path via the native save dialog.
+// Returns the saved path, or an empty string when the dialog is cancelled.
+func (a *App) SaveExportFile(defaultFilename, content string) (string, error) {
+	path, err := runtime.SaveFileDialog(a.ctx, runtime.SaveDialogOptions{
+		DefaultFilename: defaultFilename,
+		Title:           "Save export",
+		Filters: []runtime.FileFilter{
+			{DisplayName: "CSV Files (*.csv)", Pattern: "*.csv"},
+			{DisplayName: "All Files (*.*)", Pattern: "*.*"},
+		},
+	})
+	if err != nil {
+		return "", err
+	}
+	if path == "" {
+		return "", nil
+	}
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		return "", fmt.Errorf("write export file: %w", err)
+	}
+	return path, nil
 }
 
 func (a *App) callContext() context.Context {

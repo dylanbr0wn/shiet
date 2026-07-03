@@ -1,7 +1,9 @@
 import type {
   Category,
+  DayTimeline,
   Event as ClockrEvent,
   GapFill,
+  Interval,
   Period,
   TzSegment,
 } from "@/lib/api";
@@ -15,7 +17,11 @@ import {
   zonedDateTimeParts,
   zonedPosition,
 } from "./timezone";
-import type { ScheduleItem, SchedulePlacement } from "./types";
+import type {
+  ScheduleGapOverlay,
+  ScheduleItem,
+  SchedulePlacement,
+} from "./types";
 
 export interface EventReviewState {
   reviewItemId: number;
@@ -120,6 +126,7 @@ export function gapFillToSchedulerItem(
   const endMinutes =
     end.day === start.day ? end.minutes : SCHEDULE_END_MINUTES;
   const category = categoryName(gapFill.categoryId, categoriesById);
+  const kind = gapFill.source === "manual" ? "manual" : "gap";
 
   return applyPlacement(
     {
@@ -130,9 +137,69 @@ export function gapFillToSchedulerItem(
       metadata: {
         title: gapFill.note || category,
         category,
-        kind: "manual",
+        kind,
       },
     },
     placement,
   );
+}
+
+function intervalUtcValue(value: string | Date | undefined) {
+  if (!value) {
+    return null;
+  }
+
+  if (value instanceof Date) {
+    return value.toISOString();
+  }
+
+  const date = toDate(value);
+  return date?.toISOString() ?? null;
+}
+
+export function gapIntervalToOverlay(
+  day: string,
+  interval: Interval,
+  tzSegments: TzSegment[],
+): ScheduleGapOverlay | null {
+  const startIso = intervalUtcValue(interval.start);
+  const endIso = intervalUtcValue(interval.end);
+  const startDate = toDate(startIso ?? undefined);
+  const endDate = toDate(endIso ?? undefined);
+
+  if (!startDate || !endDate || !startIso || !endIso) {
+    return null;
+  }
+
+  const timeZone = activeTimeZoneForDay(day, tzSegments);
+  const start = zonedDateTimeParts(startDate, timeZone);
+  const end = zonedDateTimeParts(endDate, timeZone);
+  const startMinutes = start.minutes;
+  const endMinutes =
+    end.day === start.day ? end.minutes : SCHEDULE_END_MINUTES;
+
+  return {
+    id: `gap-${day}-${startIso}-${endIso}`,
+    day,
+    startMinutes,
+    endMinutes: Math.max(startMinutes + 15, endMinutes),
+    gapWindowStart: startIso,
+    gapWindowEnd: endIso,
+  };
+}
+
+export function gapTimelineToOverlays(
+  timelines: DayTimeline[],
+  visibleDays: ReadonlySet<string>,
+  tzSegments: TzSegment[],
+): ScheduleGapOverlay[] {
+  return timelines.flatMap((timeline) => {
+    if (!visibleDays.has(timeline.date)) {
+      return [];
+    }
+
+    return timeline.gaps
+      .map((gap) => gapIntervalToOverlay(timeline.date, gap, tzSegments))
+      .filter((gap): gap is ScheduleGapOverlay => gap !== null);
+  });
 }

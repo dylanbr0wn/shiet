@@ -14,6 +14,10 @@ export function ConnectGoogle(arg1, arg2) {
   return window['go']['main']['App']['ConnectGoogle'](arg1, arg2);
 }
 
+export function CreateGapFill(arg1) {
+  return window['go']['main']['App']['CreateGapFill'](arg1);
+}
+
 export function CreateManualEvent(arg1) {
   return window['go']['main']['App']['CreateManualEvent'](arg1);
 }
@@ -96,6 +100,10 @@ export function SaveAIEndpoint(arg1) {
 
 export function SaveAIModel(arg1) {
   return window['go']['main']['App']['SaveAIModel'](arg1);
+}
+
+export function SaveExportFile(arg1, arg2) {
+  return window['go']['main']['App']['SaveExportFile'](arg1, arg2);
 }
 
 export function SetCalendarDefaultCategory(arg1, arg2) {
