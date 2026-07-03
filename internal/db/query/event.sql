@@ -1,5 +1,17 @@
 -- name: ListEventsForPeriod :many
-SELECT * FROM event WHERE period_id = ? AND active = 1 ORDER BY start_utc, start_date;
+SELECT e.* FROM event e
+WHERE e.period_id = ? AND e.active = 1
+  AND NOT EXISTS (
+      SELECT 1
+      FROM overlay o
+      WHERE o.period_id = e.period_id
+        AND o.provider = e.provider
+        AND o.external_id = e.external_id
+        AND o.instance_id = e.instance_id
+        AND o.kind = 'status'
+        AND o.note = 'excluded'
+  )
+ORDER BY e.start_utc, e.start_date;
 
 -- name: ListAllEventsForPeriod :many
 SELECT * FROM event WHERE period_id = ? ORDER BY start_utc, start_date;

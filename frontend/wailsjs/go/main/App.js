@@ -86,6 +86,10 @@ export function ListTzSegments(arg1) {
   return window['go']['main']['App']['ListTzSegments'](arg1);
 }
 
+export function ResolveReviewItem(arg1) {
+  return window['go']['main']['App']['ResolveReviewItem'](arg1);
+}
+
 export function SaveAIConfig(arg1, arg2) {
   return window['go']['main']['App']['SaveAIConfig'](arg1, arg2);
 }

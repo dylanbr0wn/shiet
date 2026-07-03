@@ -559,6 +559,32 @@ export namespace service {
 		    return a;
 		}
 	}
+	export class ResolveReviewItemInput {
+	    reviewItemId: number;
+	    action: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new ResolveReviewItemInput(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.reviewItemId = source["reviewItemId"];
+	        this.action = source["action"];
+	    }
+	}
+	export class ResolveReviewItemResult {
+	    periodId: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new ResolveReviewItemResult(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.periodId = source["periodId"];
+	    }
+	}
 	export class ReviewItem {
 	    id: number;
 	    periodId: number;
@@ -566,6 +592,9 @@ export namespace service {
 	    eventId?: number;
 	    payload: string;
 	    status: string;
+	    conflictKey?: string;
+	    decisionAction?: string;
+	    decisionPayload?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new ReviewItem(source);
@@ -579,6 +608,9 @@ export namespace service {
 	        this.eventId = source["eventId"];
 	        this.payload = source["payload"];
 	        this.status = source["status"];
+	        this.conflictKey = source["conflictKey"];
+	        this.decisionAction = source["decisionAction"];
+	        this.decisionPayload = source["decisionPayload"];
 	    }
 	}
 	export class SyncResult {

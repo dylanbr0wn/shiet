@@ -70,6 +70,36 @@ describe("schedule mappers", () => {
     });
   });
 
+  it("marks open review events distinctly on the schedule", () => {
+    const event: ClockrEvent = {
+      id: 34,
+      periodId: 1,
+      calendarId: 3,
+      provider: "google",
+      externalId: "event-34",
+      title: "Focus",
+      allDay: false,
+      start: "2026-06-09T16:30:00Z",
+      end: "2026-06-09T18:00:00Z",
+      active: true,
+    };
+
+    expect(
+      eventToSchedulerItem(event, tzSegments, undefined, {
+        reviewItemId: 12,
+        kind: "new_in_gap",
+      }),
+    ).toMatchObject({
+      id: "event-34",
+      metadata: {
+        category: "Needs review",
+        kind: "review",
+        reviewItemId: 12,
+        reviewKind: "new_in_gap",
+      },
+    });
+  });
+
   it("maps gap fills with category names and timezone-local minutes", () => {
     const categoriesById = new Map<number, Category>([
       [5, { id: 5, name: "Deep Work", isDefaultGap: true }],

@@ -11,16 +11,17 @@ import (
 )
 
 const createReviewItem = `-- name: CreateReviewItem :one
-INSERT INTO review_item (period_id, kind, event_id, payload)
-VALUES (?, ?, ?, ?)
-RETURNING id, period_id, kind, event_id, payload, status, created_at, resolved_at
+INSERT INTO review_item (period_id, kind, event_id, payload, conflict_key)
+VALUES (?, ?, ?, ?, ?)
+RETURNING id, period_id, kind, event_id, payload, status, created_at, resolved_at, conflict_key, decision_action, decision_payload
 `
 
 type CreateReviewItemParams struct {
-	PeriodID int64         `json:"period_id"`
-	Kind     string        `json:"kind"`
-	EventID  sql.NullInt64 `json:"event_id"`
-	Payload  string        `json:"payload"`
+	PeriodID    int64         `json:"period_id"`
+	Kind        string        `json:"kind"`
+	EventID     sql.NullInt64 `json:"event_id"`
+	Payload     string        `json:"payload"`
+	ConflictKey string        `json:"conflict_key"`
 }
 
 func (q *Queries) CreateReviewItem(ctx context.Context, arg CreateReviewItemParams) (ReviewItem, error) {
@@ -29,6 +30,7 @@ func (q *Queries) CreateReviewItem(ctx context.Context, arg CreateReviewItemPara
 		arg.Kind,
 		arg.EventID,
 		arg.Payload,
+		arg.ConflictKey,
 	)
 	var i ReviewItem
 	err := row.Scan(
@@ -40,12 +42,70 @@ func (q *Queries) CreateReviewItem(ctx context.Context, arg CreateReviewItemPara
 		&i.Status,
 		&i.CreatedAt,
 		&i.ResolvedAt,
+		&i.ConflictKey,
+		&i.DecisionAction,
+		&i.DecisionPayload,
+	)
+	return i, err
+}
+
+const getReviewItem = `-- name: GetReviewItem :one
+SELECT id, period_id, kind, event_id, payload, status, created_at, resolved_at, conflict_key, decision_action, decision_payload FROM review_item WHERE id = ?
+`
+
+func (q *Queries) GetReviewItem(ctx context.Context, id int64) (ReviewItem, error) {
+	row := q.db.QueryRowContext(ctx, getReviewItem, id)
+	var i ReviewItem
+	err := row.Scan(
+		&i.ID,
+		&i.PeriodID,
+		&i.Kind,
+		&i.EventID,
+		&i.Payload,
+		&i.Status,
+		&i.CreatedAt,
+		&i.ResolvedAt,
+		&i.ConflictKey,
+		&i.DecisionAction,
+		&i.DecisionPayload,
+	)
+	return i, err
+}
+
+const getReviewItemByConflictKey = `-- name: GetReviewItemByConflictKey :one
+SELECT id, period_id, kind, event_id, payload, status, created_at, resolved_at, conflict_key, decision_action, decision_payload FROM review_item
+WHERE period_id = ? AND kind = ? AND conflict_key = ?
+ORDER BY CASE status WHEN 'open' THEN 0 ELSE 1 END, created_at DESC
+LIMIT 1
+`
+
+type GetReviewItemByConflictKeyParams struct {
+	PeriodID    int64  `json:"period_id"`
+	Kind        string `json:"kind"`
+	ConflictKey string `json:"conflict_key"`
+}
+
+func (q *Queries) GetReviewItemByConflictKey(ctx context.Context, arg GetReviewItemByConflictKeyParams) (ReviewItem, error) {
+	row := q.db.QueryRowContext(ctx, getReviewItemByConflictKey, arg.PeriodID, arg.Kind, arg.ConflictKey)
+	var i ReviewItem
+	err := row.Scan(
+		&i.ID,
+		&i.PeriodID,
+		&i.Kind,
+		&i.EventID,
+		&i.Payload,
+		&i.Status,
+		&i.CreatedAt,
+		&i.ResolvedAt,
+		&i.ConflictKey,
+		&i.DecisionAction,
+		&i.DecisionPayload,
 	)
 	return i, err
 }
 
 const listOpenReviewItems = `-- name: ListOpenReviewItems :many
-SELECT id, period_id, kind, event_id, payload, status, created_at, resolved_at FROM review_item WHERE period_id = ? AND status = 'open' ORDER BY created_at
+SELECT id, period_id, kind, event_id, payload, status, created_at, resolved_at, conflict_key, decision_action, decision_payload FROM review_item WHERE period_id = ? AND status = 'open' ORDER BY created_at
 `
 
 func (q *Queries) ListOpenReviewItems(ctx context.Context, periodID int64) ([]ReviewItem, error) {
@@ -66,6 +126,9 @@ func (q *Queries) ListOpenReviewItems(ctx context.Context, periodID int64) ([]Re
 			&i.Status,
 			&i.CreatedAt,
 			&i.ResolvedAt,
+			&i.ConflictKey,
+			&i.DecisionAction,
+			&i.DecisionPayload,
 		); err != nil {
 			return nil, err
 		}
@@ -82,16 +145,26 @@ func (q *Queries) ListOpenReviewItems(ctx context.Context, periodID int64) ([]Re
 
 const resolveReviewItem = `-- name: ResolveReviewItem :exec
 UPDATE review_item
-SET status = ?, resolved_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+SET status = ?,
+    decision_action = ?,
+    decision_payload = ?,
+    resolved_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
 WHERE id = ?
 `
 
 type ResolveReviewItemParams struct {
-	Status string `json:"status"`
-	ID     int64  `json:"id"`
+	Status          string `json:"status"`
+	DecisionAction  string `json:"decision_action"`
+	DecisionPayload string `json:"decision_payload"`
+	ID              int64  `json:"id"`
 }
 
 func (q *Queries) ResolveReviewItem(ctx context.Context, arg ResolveReviewItemParams) error {
-	_, err := q.db.ExecContext(ctx, resolveReviewItem, arg.Status, arg.ID)
+	_, err := q.db.ExecContext(ctx, resolveReviewItem,
+		arg.Status,
+		arg.DecisionAction,
+		arg.DecisionPayload,
+		arg.ID,
+	)
 	return err
 }

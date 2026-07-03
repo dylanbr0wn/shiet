@@ -87,12 +87,15 @@ type Event struct {
 
 // ReviewItem is a sync/dedup conflict awaiting explicit user resolution.
 type ReviewItem struct {
-	ID       int64  `json:"id"`
-	PeriodID int64  `json:"periodId"`
-	Kind     string `json:"kind"`
-	EventID  *int64 `json:"eventId,omitempty"`
-	Payload  string `json:"payload"` // raw JSON context
-	Status   string `json:"status"`
+	ID              int64  `json:"id"`
+	PeriodID        int64  `json:"periodId"`
+	Kind            string `json:"kind"`
+	EventID         *int64 `json:"eventId,omitempty"`
+	Payload         string `json:"payload"` // raw JSON context
+	Status          string `json:"status"`
+	ConflictKey     string `json:"conflictKey,omitempty"`
+	DecisionAction  string `json:"decisionAction,omitempty"`
+	DecisionPayload string `json:"decisionPayload,omitempty"`
 }
 
 // GapFill is a user entry covering an uncovered interval / manual block.
@@ -169,12 +172,15 @@ func toEvent(r sqlc.Event) Event {
 
 func toReviewItem(r sqlc.ReviewItem) ReviewItem {
 	return ReviewItem{
-		ID:       r.ID,
-		PeriodID: r.PeriodID,
-		Kind:     r.Kind,
-		EventID:  nullInt64Ptr(r.EventID),
-		Payload:  r.Payload,
-		Status:   r.Status,
+		ID:              r.ID,
+		PeriodID:        r.PeriodID,
+		Kind:            r.Kind,
+		EventID:         nullInt64Ptr(r.EventID),
+		Payload:         r.Payload,
+		Status:          r.Status,
+		ConflictKey:     r.ConflictKey,
+		DecisionAction:  r.DecisionAction,
+		DecisionPayload: r.DecisionPayload,
 	}
 }
 

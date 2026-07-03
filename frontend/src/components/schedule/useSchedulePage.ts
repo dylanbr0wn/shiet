@@ -84,6 +84,8 @@ export interface SchedulePageViewModel {
   handleResetDay: (day: string) => void;
   handleCloseEventEditor: () => void;
   handleSaveEventEdit: (values: ScheduleEventEditValues) => void;
+  reviewQueueOpen: boolean;
+  setReviewQueueOpen: Dispatch<SetStateAction<boolean>>;
   selectedGap: SelectedGap | null;
   gapSuggestion: GapSuggestion | null;
   gapSuggestOpen: boolean;
@@ -131,6 +133,7 @@ export function useSchedulePage(): SchedulePageViewModel {
   >({});
   const [preview, setPreview] = useState<ScheduleChange | null>(null);
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
+  const [reviewQueueOpen, setReviewQueueOpen] = useState(false);
   const [pendingCreate, setPendingCreate] =
     useState<SchedulerCreateRequest | null>(null);
   const [selectedGap, setSelectedGap] = useState<SelectedGap | null>(null);
@@ -213,6 +216,16 @@ export function useSchedulePage(): SchedulePageViewModel {
         .map((gapFill) => gapFill.day),
     );
   }, [gapFillsQuery.data]);
+  const reviewItemsByEventId = useMemo(() => {
+    return new Map(
+      (reviewItemsQuery.data ?? [])
+        .filter((item) => typeof item.eventId === "number")
+        .map((item) => [
+          item.eventId as number,
+          { reviewItemId: item.id, kind: item.kind },
+        ]),
+    );
+  }, [reviewItemsQuery.data]);
   const backendItems = useMemo(() => {
     const events = eventsQuery.data ?? [];
     const gapFills = gapFillsQuery.data ?? [];
@@ -225,6 +238,7 @@ export function useSchedulePage(): SchedulePageViewModel {
             event,
             tzSegments,
             draftPlacements[`event-${event.id}`],
+            reviewItemsByEventId.get(event.id),
           ),
         )
         .filter((item): item is ScheduleItem => item !== null),
@@ -244,6 +258,7 @@ export function useSchedulePage(): SchedulePageViewModel {
     draftPlacements,
     eventsQuery.data,
     gapFillsQuery.data,
+    reviewItemsByEventId,
     tzSegmentsQuery.data,
   ]);
   const visibleGaps = useMemo(() => {
@@ -348,6 +363,7 @@ export function useSchedulePage(): SchedulePageViewModel {
     setPreview(null);
     setEditingItemId(null);
     setPendingCreate(null);
+    setReviewQueueOpen(false);
     setSelectedGap(null);
     setGapSuggestion(null);
   }, [activePeriodId]);
@@ -666,6 +682,8 @@ export function useSchedulePage(): SchedulePageViewModel {
     handleResetDay,
     handleCloseEventEditor,
     handleSaveEventEdit,
+    reviewQueueOpen,
+    setReviewQueueOpen,
     selectedGap,
     gapSuggestion,
     gapSuggestOpen: selectedGap !== null,

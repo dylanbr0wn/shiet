@@ -23,6 +23,11 @@ import type {
   SchedulePlacement,
 } from "./types";
 
+export interface EventReviewState {
+  reviewItemId: number;
+  kind: string;
+}
+
 export function categoryName(
   categoryId: number | undefined,
   categoriesById: Map<number, Category>,
@@ -56,7 +61,16 @@ export function eventToSchedulerItem(
   event: ClockrEvent,
   tzSegments: TzSegment[],
   placement?: SchedulePlacement,
+  reviewState?: EventReviewState,
 ): ScheduleItem | null {
+  const metadata = {
+    title: event.title || "Untitled event",
+    category: reviewState ? "Needs review" : "Calendar",
+    kind: reviewState ? "review" : "calendar",
+    reviewItemId: reviewState?.reviewItemId,
+    reviewKind: reviewState?.kind,
+  } as const;
+
   if (event.allDay && event.startDate) {
     return applyPlacement(
       {
@@ -64,11 +78,7 @@ export function eventToSchedulerItem(
         day: event.startDate,
         startMinutes: SCHEDULE_START_MINUTES,
         endMinutes: SCHEDULE_END_MINUTES,
-        metadata: {
-          title: event.title || "Untitled event",
-          category: "Calendar",
-          kind: "calendar",
-        },
+        metadata,
       },
       placement,
     );
@@ -90,11 +100,7 @@ export function eventToSchedulerItem(
       day: start.day,
       startMinutes: start.minutes,
       endMinutes: Math.max(start.minutes + 15, endMinutes),
-      metadata: {
-        title: event.title || "Untitled event",
-        category: "Calendar",
-        kind: "calendar",
-      },
+      metadata,
     },
     placement,
   );

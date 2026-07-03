@@ -116,14 +116,17 @@ type Period struct {
 }
 
 type ReviewItem struct {
-	ID         int64          `json:"id"`
-	PeriodID   int64          `json:"period_id"`
-	Kind       string         `json:"kind"`
-	EventID    sql.NullInt64  `json:"event_id"`
-	Payload    string         `json:"payload"`
-	Status     string         `json:"status"`
-	CreatedAt  string         `json:"created_at"`
-	ResolvedAt sql.NullString `json:"resolved_at"`
+	ID              int64          `json:"id"`
+	PeriodID        int64          `json:"period_id"`
+	Kind            string         `json:"kind"`
+	EventID         sql.NullInt64  `json:"event_id"`
+	Payload         string         `json:"payload"`
+	Status          string         `json:"status"`
+	CreatedAt       string         `json:"created_at"`
+	ResolvedAt      sql.NullString `json:"resolved_at"`
+	ConflictKey     string         `json:"conflict_key"`
+	DecisionAction  string         `json:"decision_action"`
+	DecisionPayload string         `json:"decision_payload"`
 }
 
 type Submission struct {

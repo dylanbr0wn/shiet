@@ -106,6 +106,18 @@ export interface ReviewItem {
   eventId?: number;
   payload: string;
   status: string;
+  conflictKey?: string;
+  decisionAction?: string;
+  decisionPayload?: string;
+}
+
+export interface ResolveReviewItemInput {
+  reviewItemId: number;
+  action: string;
+}
+
+export interface ResolveReviewItemResult {
+  periodId: number;
 }
 
 export interface TzSegment {

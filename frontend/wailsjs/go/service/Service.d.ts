@@ -46,6 +46,8 @@ export function ListSelectedCalendars(arg1:context.Context):Promise<Array<servic
 
 export function ListTzSegments(arg1:context.Context,arg2:number):Promise<Array<service.TzSegment>>;
 
+export function ResolveReviewItem(arg1:context.Context,arg2:service.ResolveReviewItemInput):Promise<service.ResolveReviewItemResult>;
+
 export function SaveAIConfig(arg1:context.Context,arg2:string,arg3:string):Promise<void>;
 
 export function SaveAIEndpoint(arg1:context.Context,arg2:string):Promise<void>;
