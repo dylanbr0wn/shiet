@@ -65,14 +65,15 @@ export function buildReviewItemView(
       : undefined;
   const title = eventTitle(event, payload);
   const minutes = eventMinutes(event);
+  const kind = item.kind as ReviewItemKind;
 
-  switch (item.kind as ReviewItemKind) {
+  switch (kind) {
     case "deleted_categorized": {
       const reason =
         payload.reason === "declined" ? "declined on your calendar" : "deleted from your calendar";
       return {
         id: item.id,
-        kind: item.kind,
+        kind,
         tag: "Removed",
         title,
         description: `${reason} but already categorized${minutes ? ` (${formatDuration(minutes)})` : ""}. Suggest dropping the entry.`,
@@ -83,7 +84,7 @@ export function buildReviewItemView(
     case "title_changed":
       return {
         id: item.id,
-        kind: item.kind,
+        kind,
         tag: "Title changed",
         title,
         description: `Title changed from "${payload.from ?? "previous"}" to "${payload.to ?? title}". Confirm the existing category still applies.`,
@@ -93,7 +94,7 @@ export function buildReviewItemView(
     case "new_in_gap":
       return {
         id: item.id,
-        kind: item.kind,
+        kind,
         tag: "Gap conflict",
         title,
         description: `"${title}" landed inside a gap you already filled. Keeping both would double-count time.`,
@@ -103,7 +104,7 @@ export function buildReviewItemView(
     case "tentative":
       return {
         id: item.id,
-        kind: item.kind,
+        kind,
         tag: "Tentative",
         title,
         description: `Marked ${payload.status === "needsAction" ? "not responded" : "tentative"}. Include it in your schedule or exclude it.`,
@@ -113,7 +114,7 @@ export function buildReviewItemView(
     case "all_day":
       return {
         id: item.id,
-        kind: item.kind,
+        kind,
         tag: "All day",
         title,
         description: "All-day events need an explicit include/exclude decision before they affect totals.",

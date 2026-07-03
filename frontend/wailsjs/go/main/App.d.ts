@@ -39,13 +39,13 @@ export function ListIntegrationConnections():Promise<Array<connection.Connection
 
 export function ListOpenReviewItems(arg1:number):Promise<Array<service.ReviewItem>>;
 
-export function ResolveReviewItem(arg1:service.ResolveReviewItemInput):Promise<service.ResolveReviewItemResult>;
-
 export function ListPeriods():Promise<Array<service.Period>>;
 
 export function ListSelectedCalendars():Promise<Array<service.Calendar>>;
 
 export function ListTzSegments(arg1:number):Promise<Array<service.TzSegment>>;
+
+export function ResolveReviewItem(arg1:service.ResolveReviewItemInput):Promise<service.ResolveReviewItemResult>;
 
 export function SaveAIConfig(arg1:string,arg2:string):Promise<void>;
 
@@ -58,6 +58,8 @@ export function SetCalendarDefaultCategory(arg1:number,arg2:any):Promise<void>;
 export function SetCalendarSelected(arg1:number,arg2:boolean):Promise<void>;
 
 export function SetSetting(arg1:string,arg2:string):Promise<void>;
+
+export function SuggestGapFill(arg1:service.TimeWindow):Promise<service.GapSuggestion>;
 
 export function SyncPeriod(arg1:number):Promise<service.SyncResult>;
 

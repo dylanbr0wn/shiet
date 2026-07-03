@@ -82,6 +82,10 @@ export function ListTzSegments(arg1, arg2) {
   return window['go']['service']['Service']['ListTzSegments'](arg1, arg2);
 }
 
+export function ResolveReviewItem(arg1, arg2) {
+  return window['go']['service']['Service']['ResolveReviewItem'](arg1, arg2);
+}
+
 export function SaveAIConfig(arg1, arg2, arg3) {
   return window['go']['service']['Service']['SaveAIConfig'](arg1, arg2, arg3);
 }
@@ -106,8 +110,16 @@ export function SetCalendarSync(arg1) {
   return window['go']['service']['Service']['SetCalendarSync'](arg1);
 }
 
+export function SetEvidence(arg1) {
+  return window['go']['service']['Service']['SetEvidence'](arg1);
+}
+
 export function SetSetting(arg1, arg2, arg3) {
   return window['go']['service']['Service']['SetSetting'](arg1, arg2, arg3);
+}
+
+export function SuggestGapFill(arg1, arg2) {
+  return window['go']['service']['Service']['SuggestGapFill'](arg1, arg2);
 }
 
 export function SyncEvents(arg1, arg2, arg3) {
