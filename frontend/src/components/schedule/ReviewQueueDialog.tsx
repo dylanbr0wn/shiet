@@ -88,7 +88,7 @@ export function ReviewQueueDialog({
           <DialogTitle>Review queue</DialogTitle>
           <DialogDescription>
             {views.length > 0
-              ? `${views.length} item${views.length === 1 ? "" : "s"} need a decision after the last sync. Safe changes were applied automatically.`
+              ? `${views.length} item${views.length === 1 ? " needs" : "s need"} a decision after the last sync. Safe changes were applied automatically.`
               : "No open review items for this period."}
           </DialogDescription>
         </DialogHeader>
