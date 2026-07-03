@@ -323,19 +323,16 @@ export function ScheduleTimeline({
                                 <button
                                   type="button"
                                   data-scheduler-ignore-create=""
-                                  disabled={!aiConfigured}
                                   className={cn([
                                     "pointer-events-auto inline-flex shrink-0 items-center gap-1 rounded-full border border-border bg-background/90 px-2 py-0.5 text-[11px] font-medium text-foreground shadow-sm transition-colors",
                                     aiConfigured
                                       ? "hover:border-emerald-400 hover:bg-emerald-50 hover:text-emerald-950"
-                                      : "cursor-not-allowed opacity-60",
+                                      : "hover:bg-muted",
                                   ])}
                                   onClick={(event) => {
                                     event.preventDefault();
                                     event.stopPropagation();
-                                    if (aiConfigured) {
-                                      onSelectGap(gap);
-                                    }
+                                    onSelectGap(gap);
                                   }}
                                 >
                                   <SparklesIcon className="size-3" />
