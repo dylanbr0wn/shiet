@@ -1,5 +1,12 @@
 import { useEffect, useRef } from "react";
-import { CopyIcon, PencilIcon, PlusIcon, RotateCcwIcon, Trash2Icon } from "lucide-react";
+import {
+  AlertTriangleIcon,
+  CopyIcon,
+  PencilIcon,
+  PlusIcon,
+  RotateCcwIcon,
+  Trash2Icon,
+} from "lucide-react";
 import {
   ContextMenu,
   ContextMenuContent,
@@ -348,6 +355,12 @@ export function ScheduleTimeline({
                                       )}
                                     />
                                     <div className="min-w-0">
+                                      {metadata?.kind === "review" ? (
+                                        <div className="mb-1 flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide opacity-80">
+                                          <AlertTriangleIcon className="size-3" />
+                                          <span>Needs review</span>
+                                        </div>
+                                      ) : null}
                                       <p className="truncate font-semibold">
                                         {metadata?.title ?? "Untitled"}
                                       </p>

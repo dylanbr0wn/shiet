@@ -75,6 +75,13 @@ func TestResolveReviewItem_DeletedCategorizedKeep(t *testing.T) {
 	if len(events) != 1 {
 		t.Fatalf("event should remain, got %+v", events)
 	}
+
+	if _, err := e.svc.SyncEvents(ctx, e.periodID, []service.IncomingEvent{}); err != nil {
+		t.Fatal(err)
+	}
+	if open := openItems(t, e); len(open) != 0 {
+		t.Fatalf("resolved deleted event should not requeue, got %d open", len(open))
+	}
 }
 
 func TestResolveReviewItem_TitleChangedAccept(t *testing.T) {
@@ -155,6 +162,55 @@ func TestResolveReviewItem_NewInGapUseEvent(t *testing.T) {
 	}
 }
 
+func TestResolveReviewItem_NewInGapKeepGapPersistsAcrossSync(t *testing.T) {
+	e := newSyncEnv(t)
+	ctx := context.Background()
+
+	if _, err := e.q.CreateGapFill(ctx, sqlc.CreateGapFillParams{
+		PeriodID:   e.periodID,
+		Day:        "2026-06-02",
+		StartUtc:   "2026-06-02T13:00:00Z",
+		EndUtc:     "2026-06-02T14:00:00Z",
+		CategoryID: sql.NullInt64{Int64: e.catID, Valid: true},
+		Source:     "gap",
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	inc := e.baseEvent()
+	inc.ExternalID = "evt-overlap"
+	inc.Start = tm("2026-06-02T13:30:00Z")
+	inc.End = tm("2026-06-02T14:30:00Z")
+	if _, err := e.svc.SyncEvents(ctx, e.periodID, []service.IncomingEvent{inc}); err != nil {
+		t.Fatal(err)
+	}
+	items := openItems(t, e)
+	if len(items) != 1 {
+		t.Fatalf("want 1 review item, got %d", len(items))
+	}
+
+	if _, err := e.svc.ResolveReviewItem(ctx, service.ResolveReviewItemInput{
+		ReviewItemID: items[0].ID,
+		Action:       service.ReviewActionKeepGap,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := e.svc.SyncEvents(ctx, e.periodID, []service.IncomingEvent{inc}); err != nil {
+		t.Fatal(err)
+	}
+
+	if open := openItems(t, e); len(open) != 0 {
+		t.Fatalf("resolved gap conflict should not requeue, got %d open", len(open))
+	}
+	events, err := e.svc.ListEvents(ctx, e.periodID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(events) != 0 {
+		t.Fatalf("keep-gap decision should continue removing event, got %+v", events)
+	}
+}
+
 func TestResolveReviewItem_TentativeExclude(t *testing.T) {
 	e := newSyncEnv(t)
 	ctx := context.Background()
@@ -180,5 +236,19 @@ func TestResolveReviewItem_TentativeExclude(t *testing.T) {
 	}
 	if len(events) != 0 {
 		t.Fatalf("event should be removed, got %+v", events)
+	}
+
+	if _, err := e.svc.SyncEvents(ctx, e.periodID, []service.IncomingEvent{tentative}); err != nil {
+		t.Fatal(err)
+	}
+	if open := openItems(t, e); len(open) != 0 {
+		t.Fatalf("resolved tentative event should not requeue, got %d open", len(open))
+	}
+	events, err = e.svc.ListEvents(ctx, e.periodID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(events) != 0 {
+		t.Fatalf("excluded event should remain hidden, got %+v", events)
 	}
 }

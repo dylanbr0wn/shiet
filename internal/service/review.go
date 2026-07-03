@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/dylanbr0wn/clockr/internal/db/sqlc"
@@ -12,14 +13,14 @@ import (
 
 // Review resolution actions (must match frontend).
 const (
-	ReviewActionKeepEntry  = "keep_entry"
-	ReviewActionDropEntry  = "drop_entry"
-	ReviewActionAccept     = "accept"
-	ReviewActionDismiss    = "dismiss"
-	ReviewActionKeepGap    = "keep_gap"
-	ReviewActionUseEvent   = "use_event"
-	ReviewActionInclude    = "include"
-	ReviewActionExclude    = "exclude"
+	ReviewActionKeepEntry = "keep_entry"
+	ReviewActionDropEntry = "drop_entry"
+	ReviewActionAccept    = "accept"
+	ReviewActionDismiss   = "dismiss"
+	ReviewActionKeepGap   = "keep_gap"
+	ReviewActionUseEvent  = "use_event"
+	ReviewActionInclude   = "include"
+	ReviewActionExclude   = "exclude"
 )
 
 // ResolveReviewItemInput is the user decision for one review-queue item.
@@ -84,8 +85,10 @@ func (s *Service) ResolveReviewItem(ctx context.Context, input ResolveReviewItem
 	}
 
 	if err := q.ResolveReviewItem(ctx, sqlc.ResolveReviewItemParams{
-		Status: status,
-		ID:     item.ID,
+		Status:          status,
+		DecisionAction:  input.Action,
+		DecisionPayload: "{}",
+		ID:              item.ID,
 	}); err != nil {
 		return res, mapErr("resolve review item", err)
 	}
@@ -112,10 +115,7 @@ func (s *Service) resolveDeletedCategorized(ctx context.Context, q *sqlc.Queries
 		if err := s.deleteCategoryOverlay(ctx, q, ev); err != nil {
 			return err
 		}
-		if err := q.DeleteEvent(ctx, ev.ID); err != nil {
-			return mapErr("delete event", err)
-		}
-		return nil
+		return markEventExcluded(ctx, q, ev)
 	default:
 		return fmt.Errorf("unsupported action %q for deleted_categorized", action)
 	}
@@ -132,10 +132,7 @@ func (s *Service) resolveNewInGap(ctx context.Context, q *sqlc.Queries, item sql
 
 	switch action {
 	case ReviewActionKeepGap:
-		if err := q.DeleteEvent(ctx, ev.ID); err != nil {
-			return mapErr("delete event", err)
-		}
-		return nil
+		return markEventExcluded(ctx, q, ev)
 	case ReviewActionUseEvent:
 		if ev.AllDay != 0 || !ev.StartUtc.Valid || !ev.EndUtc.Valid {
 			return fmt.Errorf("event %d is not a timed event", ev.ID)
@@ -170,13 +167,41 @@ func (s *Service) resolveIncludeExclude(ctx context.Context, q *sqlc.Queries, it
 		if err := s.deleteCategoryOverlay(ctx, q, ev); err != nil {
 			return err
 		}
-		if err := q.DeleteEvent(ctx, ev.ID); err != nil {
-			return mapErr("delete event", err)
-		}
-		return nil
+		return markEventExcluded(ctx, q, ev)
 	default:
 		return fmt.Errorf("unsupported action %q for %s", action, item.Kind)
 	}
+}
+
+func markEventExcluded(ctx context.Context, q *sqlc.Queries, ev sqlc.Event) error {
+	if _, err := q.UpsertOverlay(ctx, sqlc.UpsertOverlayParams{
+		PeriodID:   ev.PeriodID,
+		Provider:   ev.Provider,
+		ExternalID: ev.ExternalID,
+		InstanceID: ev.InstanceID,
+		Note:       overlayStatusExclude,
+		Kind:       overlayKindStatus,
+	}); err != nil {
+		return mapErr("mark event excluded", err)
+	}
+	return nil
+}
+
+func hasStatusExcluded(ctx context.Context, q *sqlc.Queries, ev sqlc.Event) (bool, error) {
+	o, err := q.GetOverlay(ctx, sqlc.GetOverlayParams{
+		PeriodID:   ev.PeriodID,
+		Provider:   ev.Provider,
+		ExternalID: ev.ExternalID,
+		InstanceID: ev.InstanceID,
+		Kind:       overlayKindStatus,
+	})
+	if errors.Is(err, sql.ErrNoRows) {
+		return false, nil
+	}
+	if err != nil {
+		return false, mapErr("get status overlay", err)
+	}
+	return o.Note == overlayStatusExclude, nil
 }
 
 func (s *Service) deleteCategoryOverlay(ctx context.Context, q *sqlc.Queries, ev sqlc.Event) error {
@@ -295,4 +320,22 @@ func splitAround(gap, event Interval) (before, overlap, after *Interval) {
 	o := Interval{Start: event.Start, End: event.End}
 	a := Interval{Start: event.End, End: gap.End}
 	return &b, &o, &a
+}
+
+func eventIdentityFromIncoming(inc IncomingEvent) string {
+	return strings.Join([]string{
+		inc.Provider,
+		fmt.Sprint(inc.CalendarID),
+		inc.ExternalID,
+		inc.InstanceID,
+	}, "|")
+}
+
+func eventIdentityFromRow(ev sqlc.Event) string {
+	return strings.Join([]string{
+		ev.Provider,
+		fmt.Sprint(ev.CalendarID),
+		ev.ExternalID,
+		ev.InstanceID,
+	}, "|")
 }

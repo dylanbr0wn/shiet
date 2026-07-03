@@ -178,6 +178,16 @@ export function useSchedulePage(): SchedulePageViewModel {
         .map((gapFill) => gapFill.day),
     );
   }, [gapFillsQuery.data]);
+  const reviewItemsByEventId = useMemo(() => {
+    return new Map(
+      (reviewItemsQuery.data ?? [])
+        .filter((item) => typeof item.eventId === "number")
+        .map((item) => [
+          item.eventId as number,
+          { reviewItemId: item.id, kind: item.kind },
+        ]),
+    );
+  }, [reviewItemsQuery.data]);
   const backendItems = useMemo(() => {
     const events = eventsQuery.data ?? [];
     const gapFills = gapFillsQuery.data ?? [];
@@ -190,6 +200,7 @@ export function useSchedulePage(): SchedulePageViewModel {
             event,
             tzSegments,
             draftPlacements[`event-${event.id}`],
+            reviewItemsByEventId.get(event.id),
           ),
         )
         .filter((item): item is ScheduleItem => item !== null),
@@ -209,6 +220,7 @@ export function useSchedulePage(): SchedulePageViewModel {
     draftPlacements,
     eventsQuery.data,
     gapFillsQuery.data,
+    reviewItemsByEventId,
     tzSegmentsQuery.data,
   ]);
   const items = backendItems;

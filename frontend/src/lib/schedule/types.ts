@@ -10,6 +10,8 @@ export interface ScheduleMetadata {
   title: string;
   category: string;
   kind: ScheduleKind;
+  reviewItemId?: number;
+  reviewKind?: string;
 }
 
 export interface ScheduleDayMetadata {

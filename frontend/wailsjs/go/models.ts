@@ -538,6 +538,9 @@ export namespace service {
 	    eventId?: number;
 	    payload: string;
 	    status: string;
+	    conflictKey?: string;
+	    decisionAction?: string;
+	    decisionPayload?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new ReviewItem(source);
@@ -551,6 +554,9 @@ export namespace service {
 	        this.eventId = source["eventId"];
 	        this.payload = source["payload"];
 	        this.status = source["status"];
+	        this.conflictKey = source["conflictKey"];
+	        this.decisionAction = source["decisionAction"];
+	        this.decisionPayload = source["decisionPayload"];
 	    }
 	}
 	export class ResolveReviewItemInput {

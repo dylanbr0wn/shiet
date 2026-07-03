@@ -36,6 +36,7 @@ type Querier interface {
 	GetPeriod(ctx context.Context, id int64) (Period, error)
 	GetPeriodByRange(ctx context.Context, arg GetPeriodByRangeParams) (Period, error)
 	GetReviewItem(ctx context.Context, id int64) (ReviewItem, error)
+	GetReviewItemByConflictKey(ctx context.Context, arg GetReviewItemByConflictKeyParams) (ReviewItem, error)
 	GetSetting(ctx context.Context, key string) (string, error)
 	ListAllEventsForPeriod(ctx context.Context, periodID int64) ([]Event, error)
 	ListCalendars(ctx context.Context) ([]Calendar, error)

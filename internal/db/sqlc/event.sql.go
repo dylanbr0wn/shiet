@@ -165,7 +165,19 @@ func (q *Queries) ListEventsByIcalUID(ctx context.Context, arg ListEventsByIcalU
 }
 
 const listEventsForPeriod = `-- name: ListEventsForPeriod :many
-SELECT id, period_id, calendar_id, provider, external_id, instance_id, recurring_event_id, ical_uid, title, description, location, organizer, attendees, status, all_day, start_utc, end_utc, start_date, end_date, original_tz, active, source_hash, created_at, updated_at FROM event WHERE period_id = ? AND active = 1 ORDER BY start_utc, start_date
+SELECT e.id, e.period_id, e.calendar_id, e.provider, e.external_id, e.instance_id, e.recurring_event_id, e.ical_uid, e.title, e.description, e.location, e.organizer, e.attendees, e.status, e.all_day, e.start_utc, e.end_utc, e.start_date, e.end_date, e.original_tz, e.active, e.source_hash, e.created_at, e.updated_at FROM event e
+WHERE e.period_id = ? AND e.active = 1
+  AND NOT EXISTS (
+      SELECT 1
+      FROM overlay o
+      WHERE o.period_id = e.period_id
+        AND o.provider = e.provider
+        AND o.external_id = e.external_id
+        AND o.instance_id = e.instance_id
+        AND o.kind = 'status'
+        AND o.note = 'excluded'
+  )
+ORDER BY e.start_utc, e.start_date
 `
 
 func (q *Queries) ListEventsForPeriod(ctx context.Context, periodID int64) ([]Event, error) {
