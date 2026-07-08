@@ -39,7 +39,7 @@ export function ExportActions({
       const text = formatSummaryText(summary);
       await ClipboardSetText(text);
       toast.success("Summary copied", {
-        description: "Period totals are ready to paste into your timesheet.",
+        description: "Period summary is ready to paste into your timesheet.",
       });
     } catch (error) {
       const message =

@@ -1,6 +1,7 @@
 import { formatDuration } from "@/lib/schedule";
 import {
   sortedCategories,
+  varianceMinutes,
   type PeriodExportSummary,
 } from "./summary";
 
@@ -16,10 +17,24 @@ function escapeCsvCell(value: string) {
   return value;
 }
 
+export function formatSignedMinutes(minutes: number) {
+  const sign = minutes >= 0 ? "+" : "-";
+  return `${sign}${formatDuration(Math.abs(minutes))}`;
+}
+
+export function formatVariance(actualMinutes: number, targetMinutes: number) {
+  return formatSignedMinutes(varianceMinutes(actualMinutes, targetMinutes));
+}
+
 export function formatSummaryText(summary: PeriodExportSummary) {
+  const variance = varianceMinutes(summary.actualMinutes, summary.targetMinutes);
   const lines: string[] = [
     `Period: ${summary.periodLabel}`,
     `${summary.startDate} to ${summary.endDate}`,
+    "",
+    `Target: ${formatDuration(summary.targetMinutes)} (${summary.targetHoursPerDay}h/day)`,
+    `Actual: ${formatDuration(summary.actualMinutes)}`,
+    `Variance: ${formatSignedMinutes(variance)}`,
     "",
     "Totals by category:",
   ];
@@ -37,11 +52,16 @@ export function formatSummaryText(summary: PeriodExportSummary) {
       left.localeCompare(right),
     );
 
+    lines.push(
+      `${day.date} — ${formatDuration(day.actualMinutes)} / ${formatDuration(day.targetMinutes)} target`,
+    );
+
     if (categories.length === 0) {
+      lines.push("  (no tracked time)");
+      lines.push("");
       continue;
     }
 
-    lines.push(day.date);
     for (const [category, minutes] of categories) {
       lines.push(`  ${category}: ${formatDuration(minutes)}`);
     }

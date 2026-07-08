@@ -48,7 +48,6 @@ export function SchedulePage({ titlebarPaddingClass }: SchedulePageProps) {
           activePeriod={schedule.activePeriod}
           items={schedule.items}
           visibleDayCount={schedule.visibleDayCount}
-          totals={schedule.totals}
           preview={schedule.preview}
           counts={schedule.counts}
           onOpenReviewQueue={() => schedule.setReviewQueueOpen(true)}

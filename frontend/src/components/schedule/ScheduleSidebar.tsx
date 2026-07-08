@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { ExportActions } from "@/components/export/ExportActions";
+import { PeriodStatsPanel } from "@/components/stats/PeriodStatsPanel";
 import {
   Card,
   CardContent,
@@ -12,7 +13,6 @@ import { formatMinutes } from "@/lib/scheduler";
 import {
   errorMessage,
   formatCadence,
-  formatDuration,
   type ScheduleChange,
 } from "@/lib/schedule";
 import type { Period } from "@/lib/api";
@@ -22,7 +22,6 @@ interface ScheduleSidebarProps {
   activePeriod: Period | null;
   items: ScheduleItem[];
   visibleDayCount: number;
-  totals: Record<string, number>;
   preview: ScheduleChange | null;
   counts: {
     events: number;
@@ -39,7 +38,6 @@ export function ScheduleSidebar({
   activePeriod,
   items,
   visibleDayCount,
-  totals,
   preview,
   counts,
   onOpenReviewQueue,
@@ -56,42 +54,27 @@ export function ScheduleSidebar({
 
   return (
     <div className="flex flex-col gap-4">
+      <PeriodStatsPanel summary={exportSummary} />
       <Card className="app-no-drag min-h-0 space-y-4 overflow-auto overscroll-none">
         <CardHeader>
-          <CardTitle className="text-sm">Totals by category</CardTitle>
+          <CardTitle className="text-sm">Preview</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="mt-3 space-y-2">
-            {Object.entries(totals).map(([category, minutes]) => (
-              <div
-                key={category}
-                className="flex items-center justify-between gap-3 text-sm"
-              >
-                <span className="truncate text-muted-foreground">{category}</span>
-                <span className="font-semibold text-foreground">
-                  {formatDuration(minutes)}
-                </span>
+          <div className="min-h-16 rounded-md border border-border bg-muted p-3 text-sm text-muted-foreground">
+            {preview ? (
+              <div className="space-y-1">
+                <p className="font-medium text-foreground">
+                  {preview.interaction}
+                </p>
+                <p>{preview.day}</p>
+                <p>
+                  {formatMinutes(preview.startMinutes)}-
+                  {formatMinutes(preview.endMinutes)}
+                </p>
               </div>
-            ))}
-          </div>
-          <div className="border-t border-border pt-4">
-            <h2 className="text-sm font-semibold text-foreground">Preview</h2>
-            <div className="mt-3 min-h-16 rounded-md border border-border bg-muted p-3 text-sm text-muted-foreground">
-              {preview ? (
-                <div className="space-y-1">
-                  <p className="font-medium text-foreground">
-                    {preview.interaction}
-                  </p>
-                  <p>{preview.day}</p>
-                  <p>
-                    {formatMinutes(preview.startMinutes)}-
-                    {formatMinutes(preview.endMinutes)}
-                  </p>
-                </div>
-              ) : (
-                <p>Idle</p>
-              )}
-            </div>
+            ) : (
+              <p>Idle</p>
+            )}
           </div>
         </CardContent>
       </Card>
