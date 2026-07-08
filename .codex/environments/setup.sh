@@ -27,6 +27,30 @@ else
   export PATH="$HOME/go/bin:$PATH"
 fi
 
+persist_shell_env() {
+  local bashrc="$HOME/.bashrc"
+  local gopath_bin="$HOME/go/bin"
+
+  if command -v go >/dev/null 2>&1; then
+    gopath_bin="$(go env GOPATH)/bin"
+  fi
+
+  mkdir -p "$(dirname "$bashrc")"
+  touch "$bashrc"
+
+  if grep -q "# Clockr Codex environment" "$bashrc"; then
+    log "Clockr shell environment already persisted"
+    return
+  fi
+
+  log "Persisting Clockr shell environment"
+  {
+    printf '\n# Clockr Codex environment\n'
+    printf 'export PATH="%s:$PATH"\n' "$gopath_bin"
+    printf 'export GOCACHE="${GOCACHE:-/tmp/clockr-gocache}"\n'
+  } >> "$bashrc"
+}
+
 install_ubuntu_wails_deps() {
   if [[ "$(uname -s)" != "Linux" ]] || ! command -v apt-get >/dev/null 2>&1; then
     return
@@ -110,6 +134,7 @@ install_go_tools() {
 }
 
 install_ubuntu_wails_deps
+persist_shell_env
 ensure_pnpm
 install_frontend
 install_go_tools
