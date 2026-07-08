@@ -10,7 +10,6 @@ import { Button } from "@/components/ui/button";
 import {
   Field,
   FieldDescription,
-  FieldGroup,
   FieldLabel,
   FieldTitle,
 } from "@/components/ui/field";
@@ -246,8 +245,7 @@ export function AIModelSettings() {
         title="Connection"
         description="Configure the OpenAI-compatible base URL and model Clockr should use."
       >
-        <FieldGroup>
-          <Field>
+        <Field>
             <FieldLabel htmlFor="ai-base-url">Base URL</FieldLabel>
             <Input
               id="ai-base-url"
@@ -385,7 +383,6 @@ export function AIModelSettings() {
           {validationMessage ? (
             <FieldDescription>{validationMessage}</FieldDescription>
           ) : null}
-        </FieldGroup>
       </SettingBlock>
     </div>
   );

@@ -26,7 +26,6 @@ import {
 } from "@/components/ui/dialog";
 import {
   Field,
-  FieldGroup,
   FieldLabel,
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
@@ -289,7 +288,7 @@ export function SettingsDialog({ children }: SettingsDialogProps) {
                   title="Period Defaults"
                   description="New periods use these values when Clockr opens the current range."
                 >
-                  <FieldGroup className="grid gap-3 sm:grid-cols-3">
+                  <div className="grid gap-3 sm:grid-cols-3">
                     <Field>
                       <FieldLabel htmlFor="setting-period-cadence">
                         Cadence
@@ -331,7 +330,7 @@ export function SettingsDialog({ children }: SettingsDialogProps) {
                       value={windowStart.value}
                       onCommit={windowStart.setValue}
                     />
-                  </FieldGroup>
+                  </div>
                 </SettingBlock>
 
                 <SettingBlock
@@ -380,7 +379,7 @@ export function SettingsDialog({ children }: SettingsDialogProps) {
                   title="Calendar Event Defaults"
                   description="Imported event states determine how they contribute to schedule gaps."
                 >
-                  <FieldGroup className="grid gap-3 sm:grid-cols-3">
+                  <div className="grid gap-3 sm:grid-cols-3">
                     <EventHandlingSelect
                       label="Accepted"
                       value={acceptedEvents.value}
@@ -396,7 +395,7 @@ export function SettingsDialog({ children }: SettingsDialogProps) {
                       value={declinedEvents.value}
                       onValueChange={declinedEvents.setValue}
                     />
-                  </FieldGroup>
+                  </div>
                 </SettingBlock>
               </div>
             </TabsContent>
