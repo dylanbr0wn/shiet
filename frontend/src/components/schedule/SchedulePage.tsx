@@ -23,22 +23,26 @@ export function SchedulePage({ titlebarPaddingClass }: SchedulePageProps) {
       <Separator />
       <section className="grid min-h-0 flex-1 gap-4 lg:grid-cols-[minmax(0,1fr)_320px] p-3 bg-sidebar">
         <ScheduleTimeline
-          days={schedule.days}
-          items={schedule.items}
-          allDayChipsByDay={schedule.allDayChipsByDay}
-          visibleGaps={schedule.visibleGaps}
-          resettableDays={schedule.resettableDays}
-          visibleDayCount={schedule.visibleDayCount}
-          aiConfigured={schedule.aiConfigured}
-          onCreate={schedule.handleCreate}
-          onPreviewChange={schedule.setPreview}
-          onCommitChange={schedule.handleCommit}
-          onEditItem={schedule.handleOpenEventEditor}
-          onDuplicateItem={schedule.handleDuplicateEvent}
-          onRemoveItem={schedule.handleRemoveEvent}
-          onResetDay={schedule.handleResetDay}
-          onSelectGap={schedule.handleSelectGap}
-          onOpenReviewQueue={() => schedule.setReviewQueueOpen(true)}
+          data={{
+            days: schedule.days,
+            items: schedule.items,
+            allDayChipsByDay: schedule.allDayChipsByDay,
+            visibleGaps: schedule.visibleGaps,
+            resettableDays: schedule.resettableDays,
+            visibleDayCount: schedule.visibleDayCount,
+            aiConfigured: schedule.aiConfigured,
+          }}
+          actions={{
+            onCreate: schedule.handleCreate,
+            onPreviewChange: schedule.setPreview,
+            onCommitChange: schedule.handleCommit,
+            onEditItem: schedule.handleOpenEventEditor,
+            onDuplicateItem: schedule.handleDuplicateEvent,
+            onRemoveItem: schedule.handleRemoveEvent,
+            onResetDay: schedule.handleResetDay,
+            onSelectGap: schedule.handleSelectGap,
+            onOpenReviewQueue: () => schedule.setReviewQueueOpen(true),
+          }}
         />
         <ScheduleSidebar
           activePeriod={schedule.activePeriod}
