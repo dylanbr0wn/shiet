@@ -11,7 +11,6 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Toggle } from "@/components/ui/toggle";
 import {
   useCategories,
   useCreateCategory,
@@ -20,6 +19,8 @@ import {
 } from "@/lib/api";
 import type { Category, CreateCategoryInput, UpdateCategoryInput } from "@/lib/api/types";
 import { SettingBlock } from "./SettingBlock";
+import { Checkbox } from "../ui/checkbox";
+import { Field, FieldContent, FieldDescription, FieldLabel, FieldTitle } from "../ui/field";
 
 interface CategoryDraft {
   name: string;
@@ -94,21 +95,18 @@ function CategoryFormFields({
           placeholder="Same as name"
         />
       </div>
-      <div className="flex items-center justify-between rounded-lg border border-border px-3 py-2">
-        <div>
-          <p className="text-sm font-medium">Default gap category</p>
-          <p className="text-xs text-muted-foreground">
-            Used when AI or gap-fill needs a fallback bucket.
-          </p>
-        </div>
-        <Toggle
-          pressed={draft.isDefaultGap}
-          onPressedChange={(pressed) =>
-            onChange({ ...draft, isDefaultGap: pressed })
-          }
-          aria-label="Default gap category"
-        />
-      </div>
+      <FieldLabel>
+        <Field orientation="horizontal">
+          <Checkbox checked={draft.isDefaultGap} onCheckedChange={(checked) =>
+            onChange({ ...draft, isDefaultGap: !!checked })} />
+          <FieldContent>
+            <FieldTitle>Default gap category</FieldTitle>
+            <FieldDescription>
+              Used when AI or gap-fill needs a fallback bucket.
+            </FieldDescription>
+          </FieldContent>
+        </Field>
+      </FieldLabel>
     </div>
   );
 }

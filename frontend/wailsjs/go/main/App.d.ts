@@ -17,9 +17,9 @@ export function CreateGapFill(arg1:service.ManualEventInput):Promise<main.Manual
 
 export function CreateManualEvent(arg1:service.ManualEventInput):Promise<main.ManualEventResult>;
 
-export function DeleteManualEvent(arg1:service.ManualEventDeleteInput):Promise<main.ManualEventResult>;
-
 export function DeleteCategory(arg1:number):Promise<void>;
+
+export function DeleteManualEvent(arg1:service.ManualEventDeleteInput):Promise<main.ManualEventResult>;
 
 export function DisconnectGoogle(arg1:string):Promise<void>;
 

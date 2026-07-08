@@ -26,12 +26,12 @@ export function CreateManualEvent(arg1) {
   return window['go']['main']['App']['CreateManualEvent'](arg1);
 }
 
-export function DeleteManualEvent(arg1) {
-  return window['go']['main']['App']['DeleteManualEvent'](arg1);
-}
-
 export function DeleteCategory(arg1) {
   return window['go']['main']['App']['DeleteCategory'](arg1);
+}
+
+export function DeleteManualEvent(arg1) {
+  return window['go']['main']['App']['DeleteManualEvent'](arg1);
 }
 
 export function DisconnectGoogle(arg1) {
