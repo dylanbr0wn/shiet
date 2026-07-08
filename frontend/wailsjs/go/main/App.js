@@ -14,6 +14,10 @@ export function ConnectGoogle(arg1, arg2) {
   return window['go']['main']['App']['ConnectGoogle'](arg1, arg2);
 }
 
+export function CreateCategory(arg1) {
+  return window['go']['main']['App']['CreateCategory'](arg1);
+}
+
 export function CreateGapFill(arg1) {
   return window['go']['main']['App']['CreateGapFill'](arg1);
 }
@@ -24,6 +28,10 @@ export function CreateManualEvent(arg1) {
 
 export function DeleteManualEvent(arg1) {
   return window['go']['main']['App']['DeleteManualEvent'](arg1);
+}
+
+export function DeleteCategory(arg1) {
+  return window['go']['main']['App']['DeleteCategory'](arg1);
 }
 
 export function DisconnectGoogle(arg1) {
@@ -124,6 +132,10 @@ export function SuggestGapFill(arg1) {
 
 export function SyncPeriod(arg1) {
   return window['go']['main']['App']['SyncPeriod'](arg1);
+}
+
+export function UpdateCategory(arg1) {
+  return window['go']['main']['App']['UpdateCategory'](arg1);
 }
 
 export function UpdateManualEvent(arg1) {
