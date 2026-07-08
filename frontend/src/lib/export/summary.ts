@@ -6,12 +6,17 @@ import type { ScheduleItem } from "@/lib/schedule/types";
 export interface DayCategoryHours {
   date: string;
   categories: Record<string, number>;
+  actualMinutes: number;
+  targetMinutes: number;
 }
 
 export interface PeriodExportSummary {
   periodLabel: string;
   startDate: string;
   endDate: string;
+  targetHoursPerDay: number;
+  targetMinutes: number;
+  actualMinutes: number;
   periodTotals: Record<string, number>;
   dailyTotals: DayCategoryHours[];
 }
@@ -35,22 +40,62 @@ export function buildPeriodExportSummary(
 
   const dayCount = periodDayCount(period);
   const days = buildDays(period.startDate, dayCount);
-  const dailyTotals = days.map(({ date }) => ({
-    date,
-    categories: dailyMap.get(date) ?? {},
-  }));
+  const targetMinutesPerDay = period.targetHoursPerDay * 60;
+  const targetMinutes = targetMinutesPerDay * dayCount;
+  const actualMinutes = Object.values(periodTotals).reduce(
+    (sum, minutes) => sum + minutes,
+    0,
+  );
+  const dailyTotals = days.map(({ date }) => {
+    const categories = dailyMap.get(date) ?? {};
+    const dayActualMinutes = Object.values(categories).reduce(
+      (sum, minutes) => sum + minutes,
+      0,
+    );
+
+    return {
+      date,
+      categories,
+      actualMinutes: dayActualMinutes,
+      targetMinutes: targetMinutesPerDay,
+    };
+  });
 
   return {
     periodLabel: formatPeriodLabel(period),
     startDate: period.startDate,
     endDate: period.endDate,
+    targetHoursPerDay: period.targetHoursPerDay,
+    targetMinutes,
+    actualMinutes,
     periodTotals,
     dailyTotals,
   };
 }
 
+export function periodProgressPercent(summary: PeriodExportSummary) {
+  if (summary.targetMinutes <= 0) {
+    return 0;
+  }
+
+  return Math.round((summary.actualMinutes / summary.targetMinutes) * 100);
+}
+
+export function varianceMinutes(actualMinutes: number, targetMinutes: number) {
+  return actualMinutes - targetMinutes;
+}
+
 export function sortedCategories(summary: PeriodExportSummary) {
-  return Object.keys(summary.periodTotals).sort((left, right) =>
-    left.localeCompare(right),
-  );
+  return sortedCategoryNames(summary.periodTotals);
+}
+
+export function sortedCategoryNames(categories: Record<string, number>) {
+  return Object.keys(categories).sort((left, right) => left.localeCompare(right));
+}
+
+export function sortCategoriesByMinutes(totals: Record<string, number>) {
+  return Object.keys(totals).sort((left, right) => {
+    const diff = totals[right] - totals[left];
+    return diff !== 0 ? diff : left.localeCompare(right);
+  });
 }

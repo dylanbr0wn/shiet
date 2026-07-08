@@ -61,6 +61,9 @@ describe("period export", () => {
       Calendar: 120,
       Development: 240,
     });
+    expect(summary.targetHoursPerDay).toBe(8);
+    expect(summary.targetMinutes).toBe(8 * 60 * 2);
+    expect(summary.actualMinutes).toBe(360);
     expect(summary.dailyTotals).toEqual([
       {
         date: "2026-06-01",
@@ -68,12 +71,16 @@ describe("period export", () => {
           Calendar: 120,
           Development: 120,
         },
+        actualMinutes: 240,
+        targetMinutes: 480,
       },
       {
         date: "2026-06-02",
         categories: {
           Development: 120,
         },
+        actualMinutes: 120,
+        targetMinutes: 480,
       },
     ]);
   });
@@ -83,9 +90,12 @@ describe("period export", () => {
     const text = formatSummaryText(summary);
 
     expect(text).toContain("Period: Jun 1-Jun 2");
+    expect(text).toContain("Target: 16h (8h/day)");
+    expect(text).toContain("Actual: 6h");
+    expect(text).toContain("Variance: -10h");
     expect(text).toContain("Calendar: 2h");
     expect(text).toContain("Development: 4h");
-    expect(text).toContain("2026-06-01");
+    expect(text).toContain("2026-06-01 — 4h / 8h target");
     expect(text).toContain("  Calendar: 2h");
   });
 
