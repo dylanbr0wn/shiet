@@ -1,0 +1,61 @@
+package main
+
+import (
+	"context"
+	"errors"
+	"log"
+	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
+
+	brokerconfig "github.com/dylanbr0wn/clockr/internal/broker/config"
+	"github.com/dylanbr0wn/clockr/internal/broker/httpapi"
+	"github.com/dylanbr0wn/clockr/internal/broker/store"
+)
+
+func main() {
+	cfg, err := brokerconfig.LoadFromEnv()
+	if err != nil {
+		log.Fatalf("load broker config: %v", err)
+	}
+
+	ctx := context.Background()
+	datastore, err := store.Open(ctx, cfg.DatastoreDSN)
+	if err != nil {
+		log.Fatalf("open broker datastore: %v", err)
+	}
+	defer datastore.Close()
+
+	srv := &http.Server{
+		Addr:              cfg.ListenAddr,
+		Handler:           httpapi.Server{Config: cfg, Store: datastore}.Handler(),
+		ReadHeaderTimeout: 5 * time.Second,
+	}
+
+	errCh := make(chan error, 1)
+	go func() {
+		log.Printf("clockr oauth broker listening on %s", cfg.ListenAddr)
+		errCh <- srv.ListenAndServe()
+	}()
+
+	stopCh := make(chan os.Signal, 1)
+	signal.Notify(stopCh, os.Interrupt, syscall.SIGTERM)
+
+	select {
+	case sig := <-stopCh:
+		log.Printf("shutting down after %s", sig)
+	case err := <-errCh:
+		if !errors.Is(err, http.ErrServerClosed) {
+			log.Fatalf("broker server failed: %v", err)
+		}
+		return
+	}
+
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	if err := srv.Shutdown(shutdownCtx); err != nil {
+		log.Fatalf("broker shutdown failed: %v", err)
+	}
+}
