@@ -80,6 +80,7 @@ export function ScheduleTimelineGrid({
           allDayChipsByDay={allDayChipsByDay}
           allDayRowHeight={allDayRowHeight}
           onOpenReviewQueue={actions.onOpenReviewQueue}
+          onExcludeAllDayChip={actions.onExcludeAllDayChip}
         />
       ) : null}
       <ScheduleTimeAxis scheduler={scheduler} timelineMarks={timelineMarks} />
