@@ -17,6 +17,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/dylanbr0wn/shiet/internal/broker/codes"
 	"github.com/dylanbr0wn/shiet/internal/config"
 	"github.com/dylanbr0wn/shiet/internal/integration/oauth"
 	"github.com/dylanbr0wn/shiet/internal/integration/secrets"
@@ -225,11 +226,11 @@ func (f *BrokerFlow) Authorize(ctx context.Context, accountID string) (oauth.Res
 
 func (f *BrokerFlow) startAuth(ctx context.Context, base, sessionID, challenge, redirectURL string) (brokerStartResponse, error) {
 	payload := map[string]string{
-		"desktop_session_id":        sessionID,
-		"handoff_challenge":         challenge,
-		"app_version":               f.appVersion(),
-		"platform":                  f.platform(),
-		"desktop_handoff_redirect":  redirectURL,
+		"desktop_session_id":       sessionID,
+		"handoff_challenge":        challenge,
+		"app_version":              f.appVersion(),
+		"platform":                 f.platform(),
+		"desktop_handoff_redirect": redirectURL,
 	}
 	body, err := json.Marshal(payload)
 	if err != nil {
@@ -434,25 +435,25 @@ func mapBrokerHTTPError(status int, raw []byte, op string) error {
 	_ = json.Unmarshal(raw, &er)
 	code := strings.TrimSpace(er.Error)
 	switch code {
-	case "handoff_already_used":
+	case codes.HandoffAlreadyUsed:
 		return fmt.Errorf("%w: complete a fresh Google connect", ErrHandoffReplay)
-	case "handoff_expired":
+	case codes.HandoffExpired:
 		return fmt.Errorf("%w: start a new Google connect", ErrHandoffExpired)
-	case "handoff_state_mismatch":
+	case codes.HandoffStateMismatch:
 		return fmt.Errorf("%w: start a new Google connect", ErrHandoffStateMismatch)
-	case "handoff_verifier_mismatch":
+	case codes.HandoffVerifierMismatch:
 		return fmt.Errorf("%w: start a new Google connect", ErrHandoffVerifier)
-	case "handoff_not_found":
+	case codes.HandoffNotFound:
 		return fmt.Errorf("%w: handoff not found; start a new Google connect", ErrBrokerRejected)
-	case "invalid_refresh_token":
+	case codes.InvalidRefreshToken:
 		return fmt.Errorf("%w: reconnect Google Calendar", ErrInvalidRefreshToken)
-	case "rate_limited":
+	case codes.RateLimited:
 		return fmt.Errorf("%w: too many requests; try again later", ErrBrokerRejected)
-	case "auth_disabled":
+	case codes.AuthDisabled:
 		return fmt.Errorf("%w: Google connect is temporarily unavailable", ErrBrokerRejected)
-	case "refresh_disabled":
+	case codes.RefreshDisabled:
 		return fmt.Errorf("%w: Google token refresh is temporarily unavailable", ErrBrokerRejected)
-	case "app_version_disabled":
+	case codes.AppVersionDisabled:
 		return fmt.Errorf("%w: this app version can no longer use broker auth; update shiet", ErrBrokerRejected)
 	}
 	if status == http.StatusTooManyRequests {

@@ -2,9 +2,12 @@ package observe
 
 import (
 	"bytes"
+	"fmt"
 	"log/slog"
 	"strings"
 	"testing"
+
+	"github.com/dylanbr0wn/shiet/internal/broker/codes"
 )
 
 func TestRedactAttrsScrubsTokensAndSecrets(t *testing.T) {
@@ -14,7 +17,7 @@ func TestRedactAttrsScrubsTokensAndSecrets(t *testing.T) {
 		slog.String("client_secret", "super-secret-value"),
 		slog.String("handoff_code", "abc123handoff"),
 		slog.String("access_token", "ya29.a0AfH6SMB-example-token"),
-		slog.String("reason", "invalid_grant"),
+		slog.String("reason", codes.OutcomeInvalidGrant),
 	}
 	out := RedactAttrs(attrs)
 	byKey := map[string]string{}
@@ -24,7 +27,7 @@ func TestRedactAttrsScrubsTokensAndSecrets(t *testing.T) {
 	if byKey["event"] != "refresh_failed" {
 		t.Fatalf("event: %q", byKey["event"])
 	}
-	if byKey["reason"] != "invalid_grant" {
+	if byKey["reason"] != codes.OutcomeInvalidGrant {
 		t.Fatalf("reason: %q", byKey["reason"])
 	}
 	for _, key := range []string{"refresh_token", "client_secret", "handoff_code", "access_token"} {
@@ -61,20 +64,20 @@ func TestLoggerRedactsInJSONOutput(t *testing.T) {
 func TestMetricsCountersAndPrometheus(t *testing.T) {
 	m := NewMetrics()
 	m.IncAuthStart()
-	m.IncHandoffFailure("already_used")
-	m.IncHandoffFailure("already_used")
-	m.IncRateLimited("start")
-	m.IncKillSwitch("refresh")
-	m.IncQuotaRisk("handoff_replay")
+	m.IncHandoffFailure(codes.OutcomeAlreadyUsed)
+	m.IncHandoffFailure(codes.OutcomeAlreadyUsed)
+	m.IncRateLimited(codes.SurfaceStart)
+	m.IncKillSwitch(codes.SurfaceRefresh)
+	m.IncQuotaRisk(codes.QuotaHandoffReplay)
 
-	if m.HandoffFailureCount("already_used") != 2 {
-		t.Fatalf("handoff fail count: %d", m.HandoffFailureCount("already_used"))
+	if m.HandoffFailureCount(codes.OutcomeAlreadyUsed) != 2 {
+		t.Fatalf("handoff fail count: %d", m.HandoffFailureCount(codes.OutcomeAlreadyUsed))
 	}
-	if m.RateLimitedCount("start") != 1 {
-		t.Fatalf("rate limited: %d", m.RateLimitedCount("start"))
+	if m.RateLimitedCount(codes.SurfaceStart) != 1 {
+		t.Fatalf("rate limited: %d", m.RateLimitedCount(codes.SurfaceStart))
 	}
-	if m.KillSwitchCount("refresh") != 1 {
-		t.Fatalf("kill switch: %d", m.KillSwitchCount("refresh"))
+	if m.KillSwitchCount(codes.SurfaceRefresh) != 1 {
+		t.Fatalf("kill switch: %d", m.KillSwitchCount(codes.SurfaceRefresh))
 	}
 
 	var buf bytes.Buffer
@@ -82,10 +85,10 @@ func TestMetricsCountersAndPrometheus(t *testing.T) {
 	text := buf.String()
 	for _, want := range []string{
 		"broker_auth_starts_total 1",
-		`broker_handoff_failures_total{reason="already_used"} 2`,
-		`broker_rate_limited_total{surface="start"} 1`,
-		`broker_kill_switch_total{surface="refresh"} 1`,
-		`broker_quota_risk_total{signal="handoff_replay"} 1`,
+		fmt.Sprintf("broker_handoff_failures_total{reason=%q} 2", codes.OutcomeAlreadyUsed),
+		fmt.Sprintf("broker_rate_limited_total{surface=%q} 1", codes.SurfaceStart),
+		fmt.Sprintf("broker_kill_switch_total{surface=%q} 1", codes.SurfaceRefresh),
+		fmt.Sprintf("broker_quota_risk_total{signal=%q} 1", codes.QuotaHandoffReplay),
 	} {
 		if !strings.Contains(text, want) {
 			t.Fatalf("metrics missing %q in:\n%s", want, text)

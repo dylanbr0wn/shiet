@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/dylanbr0wn/shiet/internal/broker/codes"
 	brokerconfig "github.com/dylanbr0wn/shiet/internal/broker/config"
 	"github.com/dylanbr0wn/shiet/internal/broker/observe"
 	"github.com/dylanbr0wn/shiet/internal/broker/ratelimit"
@@ -153,14 +154,14 @@ func TestGoogleCallbackExchangesCodeAndCreatesHandoff(t *testing.T) {
 		GoogleTokenURL: tokenSrv.URL,
 	}
 	if err := mem.SaveOAuthState(context.Background(), store.OAuthState{
-		ID:                    "broker-state-1",
-		DesktopSessionID:      "desktop-1",
-		PKCEVerifier:          "pkce-verifier",
-		PKCEChallenge:         "pkce-challenge",
-		HandoffChallenge:      "challenge-1",
+		ID:                     "broker-state-1",
+		DesktopSessionID:       "desktop-1",
+		PKCEVerifier:           "pkce-verifier",
+		PKCEChallenge:          "pkce-challenge",
+		HandoffChallenge:       "challenge-1",
 		DesktopHandoffRedirect: "http://127.0.0.1:9/oauth/handoff",
-		Scopes:                []string{"https://www.googleapis.com/auth/calendar.readonly"},
-		ExpiresAt:             now.Add(5 * time.Minute),
+		Scopes:                 []string{"https://www.googleapis.com/auth/calendar.readonly"},
+		ExpiresAt:              now.Add(5 * time.Minute),
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -302,7 +303,7 @@ func TestHandoffExchangeReturnsTokensOnce(t *testing.T) {
 	}
 	var errResp errorResponse
 	_ = json.NewDecoder(rr2.Body).Decode(&errResp)
-	if errResp.Error != "handoff_already_used" {
+	if errResp.Error != codes.HandoffAlreadyUsed {
 		t.Fatalf("replay error: %+v", errResp)
 	}
 }
@@ -345,7 +346,7 @@ func TestHandoffExchangeRejectsMismatchExpiryAndBadVerifier(t *testing.T) {
 	}
 	var mismatch errorResponse
 	_ = json.NewDecoder(rr.Body).Decode(&mismatch)
-	if mismatch.Error != "handoff_state_mismatch" {
+	if mismatch.Error != codes.HandoffStateMismatch {
 		t.Fatalf("session mismatch error: %+v", mismatch)
 	}
 	// Binding mismatch must not burn the handoff.
@@ -670,7 +671,7 @@ func TestRefreshGoogleOAuthInvalidGrant(t *testing.T) {
 	}
 	var errResp errorResponse
 	_ = json.NewDecoder(rr.Body).Decode(&errResp)
-	if errResp.Error != "invalid_refresh_token" {
+	if errResp.Error != codes.InvalidRefreshToken {
 		t.Fatalf("error: %+v", errResp)
 	}
 }
@@ -722,11 +723,11 @@ func TestStartGoogleOAuthAuthDisabled(t *testing.T) {
 	}
 	var errResp errorResponse
 	_ = json.NewDecoder(rr.Body).Decode(&errResp)
-	if errResp.Error != "auth_disabled" {
+	if errResp.Error != codes.AuthDisabled {
 		t.Fatalf("error: %+v", errResp)
 	}
-	if metrics.KillSwitchCount("start") != 1 {
-		t.Fatalf("kill switch metric: %d", metrics.KillSwitchCount("start"))
+	if metrics.KillSwitchCount(codes.SurfaceStart) != 1 {
+		t.Fatalf("kill switch metric: %d", metrics.KillSwitchCount(codes.SurfaceStart))
 	}
 }
 
@@ -745,11 +746,11 @@ func TestRefreshGoogleOAuthRefreshDisabled(t *testing.T) {
 	}
 	var errResp errorResponse
 	_ = json.NewDecoder(rr.Body).Decode(&errResp)
-	if errResp.Error != "refresh_disabled" {
+	if errResp.Error != codes.RefreshDisabled {
 		t.Fatalf("error: %+v", errResp)
 	}
-	if metrics.KillSwitchCount("refresh") != 1 {
-		t.Fatalf("kill switch metric: %d", metrics.KillSwitchCount("refresh"))
+	if metrics.KillSwitchCount(codes.SurfaceRefresh) != 1 {
+		t.Fatalf("kill switch metric: %d", metrics.KillSwitchCount(codes.SurfaceRefresh))
 	}
 }
 
@@ -767,7 +768,7 @@ func TestStartGoogleOAuthAppVersionDisabled(t *testing.T) {
 	if rr.Code != http.StatusForbidden {
 		t.Fatalf("status: got %d body %s", rr.Code, rr.Body.String())
 	}
-	if !strings.Contains(rr.Body.String(), "app_version_disabled") {
+	if !strings.Contains(rr.Body.String(), codes.AppVersionDisabled) {
 		t.Fatalf("body: %s", rr.Body.String())
 	}
 }
@@ -802,11 +803,11 @@ func TestStartGoogleOAuthRateLimited(t *testing.T) {
 	if rr.Code != http.StatusTooManyRequests {
 		t.Fatalf("status: got %d body %s", rr.Code, rr.Body.String())
 	}
-	if !strings.Contains(rr.Body.String(), "rate_limited") {
+	if !strings.Contains(rr.Body.String(), codes.RateLimited) {
 		t.Fatalf("body: %s", rr.Body.String())
 	}
-	if metrics.RateLimitedCount("start") != 1 {
-		t.Fatalf("rate limited metric: %d", metrics.RateLimitedCount("start"))
+	if metrics.RateLimitedCount(codes.SurfaceStart) != 1 {
+		t.Fatalf("rate limited metric: %d", metrics.RateLimitedCount(codes.SurfaceStart))
 	}
 }
 
@@ -824,8 +825,8 @@ func TestHandoffFailureCountedForMonitoring(t *testing.T) {
 	if rr.Code != http.StatusBadRequest {
 		t.Fatalf("status: got %d body %s", rr.Code, rr.Body.String())
 	}
-	if metrics.HandoffFailureCount("not_found") != 1 {
-		t.Fatalf("handoff failure metric: %d", metrics.HandoffFailureCount("not_found"))
+	if metrics.HandoffFailureCount(codes.OutcomeNotFound) != 1 {
+		t.Fatalf("handoff failure metric: %d", metrics.HandoffFailureCount(codes.OutcomeNotFound))
 	}
 }
 
