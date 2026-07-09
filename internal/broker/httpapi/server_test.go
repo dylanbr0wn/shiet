@@ -578,3 +578,136 @@ func (m *memoryStore) ConsumeHandoff(_ context.Context, codeHash, desktopSession
 	}
 	return store.HandoffRecord{}, store.ErrNotFound
 }
+
+func TestRefreshGoogleOAuthReturnsTokensWithoutPersisting(t *testing.T) {
+	now := time.Date(2026, 7, 8, 12, 0, 0, 0, time.UTC)
+	mem := &memoryStore{}
+	var gotForm url.Values
+	tokenSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if err := r.ParseForm(); err != nil {
+			t.Fatalf("parse form: %v", err)
+		}
+		gotForm = cloneURLValues(r.PostForm)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{
+			"access_token":"access-fresh",
+			"refresh_token":"refresh-rotated",
+			"token_type":"Bearer",
+			"expires_in":3600
+		}`))
+	}))
+	defer tokenSrv.Close()
+
+	srv := Server{
+		Config:         testConfig(),
+		Store:          mem,
+		Clock:          func() time.Time { return now },
+		GoogleTokenURL: tokenSrv.URL,
+	}
+
+	rr := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(rr, httptest.NewRequest(http.MethodPost, "/v1/google/oauth/refresh", bytes.NewBufferString(`{
+		"refresh_token":"refresh-old",
+		"scope":["https://www.googleapis.com/auth/calendar.readonly"],
+		"app_version":"0.1.0",
+		"platform":"darwin-arm64"
+	}`)))
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status: got %d body %s", rr.Code, rr.Body.String())
+	}
+
+	var resp refreshResponse
+	if err := json.NewDecoder(rr.Body).Decode(&resp); err != nil {
+		t.Fatal(err)
+	}
+	if resp.AccessToken != "access-fresh" {
+		t.Fatalf("access_token: %q", resp.AccessToken)
+	}
+	if resp.RefreshToken != "refresh-rotated" {
+		t.Fatalf("refresh_token: %q", resp.RefreshToken)
+	}
+	if resp.TokenType != "Bearer" {
+		t.Fatalf("token_type: %q", resp.TokenType)
+	}
+	if !resp.Expiry.Equal(now.Add(time.Hour)) {
+		t.Fatalf("expiry: got %s", resp.Expiry)
+	}
+
+	if gotForm.Get("grant_type") != "refresh_token" {
+		t.Fatalf("grant_type: %q", gotForm.Get("grant_type"))
+	}
+	if gotForm.Get("refresh_token") != "refresh-old" {
+		t.Fatalf("refresh_token form: %q", gotForm.Get("refresh_token"))
+	}
+	if gotForm.Get("client_id") != "google-client-id" {
+		t.Fatalf("client_id: %q", gotForm.Get("client_id"))
+	}
+	if gotForm.Get("client_secret") != "google-client-secret" {
+		t.Fatalf("client_secret: %q", gotForm.Get("client_secret"))
+	}
+	if len(mem.states) != 0 || len(mem.handoffs) != 0 {
+		t.Fatalf("store mutated: states=%d handoffs=%d", len(mem.states), len(mem.handoffs))
+	}
+}
+
+func TestRefreshGoogleOAuthInvalidGrant(t *testing.T) {
+	tokenSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		_, _ = w.Write([]byte(`{"error":"invalid_grant","error_description":"Token has been expired or revoked."}`))
+	}))
+	defer tokenSrv.Close()
+
+	srv := Server{Config: testConfig(), Store: &memoryStore{}, GoogleTokenURL: tokenSrv.URL}
+	rr := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(rr, httptest.NewRequest(http.MethodPost, "/v1/google/oauth/refresh", bytes.NewBufferString(`{
+		"refresh_token":"bad-refresh"
+	}`)))
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("status: got %d body %s", rr.Code, rr.Body.String())
+	}
+	var errResp errorResponse
+	_ = json.NewDecoder(rr.Body).Decode(&errResp)
+	if errResp.Error != "invalid_refresh_token" {
+		t.Fatalf("error: %+v", errResp)
+	}
+}
+
+func TestRefreshGoogleOAuthGoogleUnavailable(t *testing.T) {
+	tokenSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+		_, _ = w.Write([]byte(`{"error":"server_error"}`))
+	}))
+	defer tokenSrv.Close()
+
+	srv := Server{Config: testConfig(), Store: &memoryStore{}, GoogleTokenURL: tokenSrv.URL}
+	rr := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(rr, httptest.NewRequest(http.MethodPost, "/v1/google/oauth/refresh", bytes.NewBufferString(`{
+		"refresh_token":"refresh-old"
+	}`)))
+	if rr.Code != http.StatusBadGateway {
+		t.Fatalf("status: got %d body %s", rr.Code, rr.Body.String())
+	}
+	var errResp errorResponse
+	_ = json.NewDecoder(rr.Body).Decode(&errResp)
+	if errResp.Error != "google_token_refresh_failed" {
+		t.Fatalf("error: %+v", errResp)
+	}
+}
+
+func TestRefreshGoogleOAuthRequiresRefreshToken(t *testing.T) {
+	srv := Server{Config: testConfig(), Store: &memoryStore{}}
+	rr := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(rr, httptest.NewRequest(http.MethodPost, "/v1/google/oauth/refresh", bytes.NewBufferString(`{}`)))
+	if rr.Code != http.StatusBadRequest {
+		t.Fatalf("status: got %d body %s", rr.Code, rr.Body.String())
+	}
+}
+
+func cloneURLValues(values url.Values) url.Values {
+	out := make(url.Values, len(values))
+	for key, value := range values {
+		out[key] = append([]string(nil), value...)
+	}
+	return out
+}

@@ -38,6 +38,7 @@ var (
 	ErrHandoffStateMismatch = errors.New("Google OAuth handoff state mismatch")
 	ErrHandoffVerifier      = errors.New("Google OAuth handoff verifier mismatch")
 	ErrBrokerRejected       = errors.New("Google OAuth broker rejected the request")
+	ErrInvalidRefreshToken  = errors.New("Google OAuth refresh token is invalid")
 )
 
 // BrowserOpener opens a URL in the system browser. Injectable for tests.
@@ -70,6 +71,13 @@ type brokerHandoffResponse struct {
 		TokenType    string    `json:"token_type"`
 		Expiry       time.Time `json:"expiry"`
 	} `json:"token"`
+}
+
+type brokerRefreshResponse struct {
+	AccessToken  string    `json:"access_token"`
+	RefreshToken string    `json:"refresh_token,omitempty"`
+	TokenType    string    `json:"token_type"`
+	Expiry       time.Time `json:"expiry"`
 }
 
 type brokerErrorResponse struct {
@@ -288,6 +296,69 @@ func (f *BrokerFlow) exchangeHandoff(ctx context.Context, base, sessionID, broke
 	return out, nil
 }
 
+// RefreshToken asks the broker to exchange a Google refresh token for new
+// access-token material using the server-side client secret. Tokens are not
+// persisted by the broker; the caller must write the result to the keychain.
+func (f *BrokerFlow) RefreshToken(ctx context.Context, refreshToken string, scopes []string) (secrets.Token, error) {
+	base := strings.TrimRight(strings.TrimSpace(f.BaseURL), "/")
+	if base == "" {
+		return secrets.Token{}, fmt.Errorf("%w: set google.broker_base_url or SHIET_GOOGLE_BROKER_BASE_URL", config.ErrBrokerConfig)
+	}
+	refreshToken = strings.TrimSpace(refreshToken)
+	if refreshToken == "" {
+		return secrets.Token{}, fmt.Errorf("%w: refresh token is empty", ErrInvalidRefreshToken)
+	}
+
+	payload := map[string]any{
+		"refresh_token": refreshToken,
+		"app_version":   f.appVersion(),
+		"platform":      f.platform(),
+	}
+	if len(scopes) > 0 {
+		payload["scope"] = append([]string(nil), scopes...)
+	}
+	body, err := json.Marshal(payload)
+	if err != nil {
+		return secrets.Token{}, err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, base+"/v1/google/oauth/refresh", strings.NewReader(string(body)))
+	if err != nil {
+		return secrets.Token{}, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := f.httpClient().Do(req)
+	if err != nil {
+		return secrets.Token{}, fmt.Errorf("%w: contact broker refresh: %v", ErrBrokerUnavailable, err)
+	}
+	defer resp.Body.Close()
+	raw, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return secrets.Token{}, mapBrokerHTTPError(resp.StatusCode, raw, "refresh")
+	}
+	var out brokerRefreshResponse
+	if err := json.Unmarshal(raw, &out); err != nil {
+		return secrets.Token{}, fmt.Errorf("%w: decode refresh response", ErrBrokerUnavailable)
+	}
+	if strings.TrimSpace(out.AccessToken) == "" {
+		return secrets.Token{}, fmt.Errorf("%w: refresh response missing access_token", ErrBrokerUnavailable)
+	}
+	tokenType := strings.TrimSpace(out.TokenType)
+	if tokenType == "" {
+		tokenType = "Bearer"
+	}
+	nextRefresh := strings.TrimSpace(out.RefreshToken)
+	if nextRefresh == "" {
+		nextRefresh = refreshToken
+	}
+	return secrets.Token{
+		AccessToken:  out.AccessToken,
+		RefreshToken: nextRefresh,
+		TokenType:    tokenType,
+		Expiry:       out.Expiry,
+	}, nil
+}
+
 type brokerRevokeResponse struct {
 	Revoked bool `json:"revoked"`
 }
@@ -373,6 +444,8 @@ func mapBrokerHTTPError(status int, raw []byte, op string) error {
 		return fmt.Errorf("%w: start a new Google connect", ErrHandoffVerifier)
 	case "handoff_not_found":
 		return fmt.Errorf("%w: handoff not found; start a new Google connect", ErrBrokerRejected)
+	case "invalid_refresh_token":
+		return fmt.Errorf("%w: reconnect Google Calendar", ErrInvalidRefreshToken)
 	}
 	if status >= 500 || status == http.StatusNotImplemented || status == http.StatusServiceUnavailable {
 		return fmt.Errorf("%w: broker %s returned %d", ErrBrokerUnavailable, op, status)

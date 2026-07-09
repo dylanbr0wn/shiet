@@ -111,7 +111,9 @@ schema guarantees.
   renders a return page with broker_state + handoff_code (no token material).
 - `POST /v1/google/oauth/handoff`: exchanges a one-time handoff for Google token
   material bound to the initiating desktop session and handoff verifier.
-- `POST /v1/google/oauth/refresh`: reserved for broker refresh work.
+- `POST /v1/google/oauth/refresh`: exchanges a desktop-held Google refresh token
+  for new access-token material using the server-side client secret. Does not
+  persist submitted or returned token material.
 - `POST /v1/google/oauth/revoke`: accepts a desktop-supplied Google refresh
   token, calls Google's revoke endpoint, and returns `{ "revoked": true }`.
   Already-revoked / `invalid_token` responses are treated as success. The

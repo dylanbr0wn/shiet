@@ -21,6 +21,12 @@ const (
 	defaultRateDelay = time.Second
 )
 
+// TokenRefresher refreshes OAuth tokens without using local client credentials.
+// Used in broker mode so httpclient stays free of a google package import cycle.
+type TokenRefresher interface {
+	Refresh(ctx context.Context, current secrets.Token) (secrets.Token, error)
+}
+
 // Client performs authenticated provider HTTP calls with token injection,
 // refresh-on-401, and basic rate-limit backoff.
 type Client struct {
@@ -30,6 +36,9 @@ type Client struct {
 	Store     secrets.TokenStore
 	Registry  *connection.Registry
 	HTTP      *http.Client
+	// Refresher, when set, replaces the local oauth2 TokenSource refresh path
+	// (broker mode). Local/BYO leaves this nil.
+	Refresher TokenRefresher
 }
 
 // Do executes an HTTP request with bearer auth. On 401 it refreshes the token once
@@ -97,14 +106,23 @@ func (c *Client) Do(ctx context.Context, req *http.Request) (*http.Response, err
 }
 
 func (c *Client) refreshToken(ctx context.Context, current secrets.Token) (secrets.Token, error) {
-	oauthCfg := c.Config.OAuth2Config("")
-	src := oauthCfg.TokenSource(ctx, current.ToOAuth2())
-	oauthTok, err := src.Token()
-	if err != nil {
-		return secrets.Token{}, fmt.Errorf("refresh token: %w", err)
+	var next secrets.Token
+	if c.Refresher != nil {
+		refreshed, err := c.Refresher.Refresh(ctx, current)
+		if err != nil {
+			return secrets.Token{}, fmt.Errorf("refresh token: %w", err)
+		}
+		next = refreshed
+	} else {
+		oauthCfg := c.Config.OAuth2Config("")
+		src := oauthCfg.TokenSource(ctx, current.ToOAuth2())
+		oauthTok, err := src.Token()
+		if err != nil {
+			return secrets.Token{}, fmt.Errorf("refresh token: %w", err)
+		}
+		next = secrets.TokenFromOAuth2(oauthTok)
 	}
 
-	next := secrets.TokenFromOAuth2(oauthTok)
 	if err := c.Store.Set(c.Provider, c.AccountID, next); err != nil {
 		return secrets.Token{}, fmt.Errorf("persist refreshed token: %w", err)
 	}
