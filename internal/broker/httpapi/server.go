@@ -11,13 +11,17 @@ import (
 	"fmt"
 	"html"
 	"io"
+	"log/slog"
 	"net"
 	"net/http"
 	"net/url"
 	"strings"
 	"time"
 
+	"github.com/dylanbr0wn/shiet/internal/broker/codes"
 	brokerconfig "github.com/dylanbr0wn/shiet/internal/broker/config"
+	"github.com/dylanbr0wn/shiet/internal/broker/observe"
+	"github.com/dylanbr0wn/shiet/internal/broker/ratelimit"
 	"github.com/dylanbr0wn/shiet/internal/broker/store"
 )
 
@@ -25,6 +29,14 @@ const (
 	googleAuthURL       = "https://accounts.google.com/o/oauth2/v2/auth"
 	defaultGoogleToken  = "https://oauth2.googleapis.com/token"
 	defaultGoogleRevoke = "https://oauth2.googleapis.com/revoke"
+
+	limitStart          = 10
+	limitCallback       = 30
+	limitHandoff        = 20
+	limitHandoffFailure = 5
+	limitRefresh        = 60
+	limitRefreshFailure = 10
+	limitRevoke         = 20
 )
 
 type Store interface {
@@ -35,6 +47,11 @@ type Store interface {
 	ConsumeHandoff(context.Context, string, string, string, string, time.Time) (store.HandoffRecord, error)
 }
 
+// Limiter is the rate-limit seam used by the HTTP handlers.
+type Limiter interface {
+	Allow(key string, limit int) bool
+}
+
 type Server struct {
 	Config          brokerconfig.Config
 	Store           Store
@@ -42,6 +59,9 @@ type Server struct {
 	HTTPClient      *http.Client
 	GoogleTokenURL  string // override for tests
 	GoogleRevokeURL string // override for tests
+	Limiter         Limiter
+	Metrics         *observe.Metrics
+	Logger          *slog.Logger
 }
 
 type startRequest struct {
@@ -122,6 +142,7 @@ func (s Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", s.health)
 	mux.HandleFunc("GET /readyz", s.ready)
+	mux.HandleFunc("GET /metrics", s.metrics)
 	mux.HandleFunc("POST /v1/google/oauth/start", s.startGoogleOAuth)
 	mux.HandleFunc("GET /v1/google/oauth/callback", s.googleCallback)
 	mux.HandleFunc("POST /v1/google/oauth/handoff", s.exchangeHandoff)
@@ -130,23 +151,32 @@ func (s Server) Handler() http.Handler {
 	return mux
 }
 
+func (s Server) metrics(w http.ResponseWriter, r *http.Request) {
+	if s.Metrics == nil {
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+	s.Metrics.Handler().ServeHTTP(w, r)
+}
+
 func (s Server) health(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, statusResponse{Status: "ok"})
 }
 
 func (s Server) ready(w http.ResponseWriter, r *http.Request) {
 	if err := s.Config.Validate(); err != nil {
-		writeJSON(w, http.StatusServiceUnavailable, errorResponse{Error: "invalid_config"})
+		writeJSON(w, http.StatusServiceUnavailable, errorResponse{Error: codes.InvalidConfig})
 		return
 	}
 	if s.Store == nil {
-		writeJSON(w, http.StatusServiceUnavailable, errorResponse{Error: "datastore_unavailable"})
+		writeJSON(w, http.StatusServiceUnavailable, errorResponse{Error: codes.DatastoreUnavailable})
 		return
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), time.Second)
 	defer cancel()
 	if err := s.Store.Ping(ctx); err != nil {
-		writeJSON(w, http.StatusServiceUnavailable, errorResponse{Error: "datastore_unavailable"})
+		writeJSON(w, http.StatusServiceUnavailable, errorResponse{Error: codes.DatastoreUnavailable})
 		return
 	}
 	writeJSON(w, http.StatusOK, statusResponse{Status: "ready"})
@@ -154,36 +184,53 @@ func (s Server) ready(w http.ResponseWriter, r *http.Request) {
 
 func (s Server) startGoogleOAuth(w http.ResponseWriter, r *http.Request) {
 	if s.Store == nil {
-		writeJSON(w, http.StatusServiceUnavailable, errorResponse{Error: "datastore_unavailable"})
+		writeJSON(w, http.StatusServiceUnavailable, errorResponse{Error: codes.DatastoreUnavailable})
 		return
 	}
+	if s.rejectAuthDisabled(w, codes.SurfaceStart) {
+		return
+	}
+	ipBucket := sourceIPBucket(r.RemoteAddr)
+	if s.rejectRateLimited(w, codes.SurfaceStart, ratelimit.Key(codes.LimitKeyStart, ipBucket), limitStart) {
+		return
+	}
+
 	var req startRequest
 	if err := decodeJSON(r.Body, &req); err != nil {
-		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "invalid_json"})
+		s.Metrics.IncAuthStartFail()
+		writeJSON(w, http.StatusBadRequest, errorResponse{Error: codes.InvalidJSON})
 		return
 	}
 	req.DesktopSessionID = strings.TrimSpace(req.DesktopSessionID)
 	req.HandoffChallenge = strings.TrimSpace(req.HandoffChallenge)
 	req.DesktopHandoffRedirect = strings.TrimSpace(req.DesktopHandoffRedirect)
+	req.AppVersion = strings.TrimSpace(req.AppVersion)
 	if req.DesktopSessionID == "" || req.HandoffChallenge == "" {
-		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "desktop_session_id_and_handoff_challenge_required"})
+		s.Metrics.IncAuthStartFail()
+		writeJSON(w, http.StatusBadRequest, errorResponse{Error: codes.DesktopSessionAndHandoffChallengeRequired})
+		return
+	}
+	if s.rejectAppVersionDisabled(w, codes.SurfaceStart, req.AppVersion) {
 		return
 	}
 	if req.DesktopHandoffRedirect != "" {
 		if err := validateDesktopHandoffRedirect(req.DesktopHandoffRedirect); err != nil {
-			writeJSON(w, http.StatusBadRequest, errorResponse{Error: "invalid_desktop_handoff_redirect"})
+			s.Metrics.IncAuthStartFail()
+			writeJSON(w, http.StatusBadRequest, errorResponse{Error: codes.InvalidDesktopHandoffRedirect})
 			return
 		}
 	}
 
 	state, err := randomString(32)
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "random_state_failed"})
+		s.Metrics.IncAuthStartFail()
+		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: codes.RandomStateFailed})
 		return
 	}
 	verifier, err := randomString(64)
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "random_verifier_failed"})
+		s.Metrics.IncAuthStartFail()
+		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: codes.RandomVerifierFailed})
 		return
 	}
 	challenge := pkceS256(verifier)
@@ -198,21 +245,25 @@ func (s Server) startGoogleOAuth(w http.ResponseWriter, r *http.Request) {
 		HandoffChallenge:       req.HandoffChallenge,
 		DesktopHandoffRedirect: req.DesktopHandoffRedirect,
 		Scopes:                 append([]string(nil), s.Config.GoogleScopes...),
-		AppVersion:             strings.TrimSpace(req.AppVersion),
+		AppVersion:             req.AppVersion,
 		Platform:               strings.TrimSpace(req.Platform),
-		SourceIPBucket:         sourceIPBucket(r.RemoteAddr),
+		SourceIPBucket:         ipBucket,
 		ExpiresAt:              expiresAt,
 	}
 	if err := s.Store.SaveOAuthState(r.Context(), rec); err != nil {
-		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "state_persist_failed"})
+		s.Metrics.IncAuthStartFail()
+		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: codes.StatePersistFailed})
 		return
 	}
 
 	authURL, err := s.authURL(state, challenge)
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "auth_url_failed"})
+		s.Metrics.IncAuthStartFail()
+		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: codes.AuthURLFailed})
 		return
 	}
+	s.Metrics.IncAuthStart()
+	s.logInfo(codes.EventAuthStart, "outcome", codes.OutcomeOK, "app_version", req.AppVersion, "platform", strings.TrimSpace(req.Platform), "ip_bucket", ipBucket)
 	writeJSON(w, http.StatusCreated, startResponse{
 		AuthURL:     authURL,
 		BrokerState: state,
@@ -225,6 +276,19 @@ func (s Server) googleCallback(w http.ResponseWriter, r *http.Request) {
 		writeHTMLError(w, http.StatusServiceUnavailable, "Broker datastore unavailable. Return to shiet and retry.")
 		return
 	}
+	if s.Config.AuthDisabled {
+		s.Metrics.IncKillSwitch(codes.SurfaceCallback)
+		s.logInfo(codes.EventKillSwitch, "surface", codes.SurfaceCallback, "reason", codes.AuthDisabled)
+		writeHTMLError(w, http.StatusForbidden, "Google connect is temporarily disabled. Return to shiet and try again later.")
+		return
+	}
+	ipBucket := sourceIPBucket(r.RemoteAddr)
+	if !s.allow(ratelimit.Key(codes.LimitKeyCallback, ipBucket), limitCallback) {
+		s.Metrics.IncRateLimited(codes.SurfaceCallback)
+		s.logInfo(codes.EventRateLimited, "surface", codes.SurfaceCallback, "ip_bucket", ipBucket)
+		writeHTMLError(w, http.StatusTooManyRequests, "Too many authorization attempts. Return to shiet and try again later.")
+		return
+	}
 
 	q := r.URL.Query()
 	if errMsg := strings.TrimSpace(q.Get("error")); errMsg != "" {
@@ -233,6 +297,8 @@ func (s Server) googleCallback(w http.ResponseWriter, r *http.Request) {
 		if desc != "" {
 			msg = "Google authorization failed: " + desc
 		}
+		s.Metrics.IncCallback(codes.OutcomeGoogleError)
+		s.logInfo(codes.EventCallback, "outcome", codes.OutcomeGoogleError)
 		writeHTMLError(w, http.StatusBadRequest, msg+" Return to shiet and retry.")
 		return
 	}
@@ -240,6 +306,7 @@ func (s Server) googleCallback(w http.ResponseWriter, r *http.Request) {
 	code := strings.TrimSpace(q.Get("code"))
 	stateID := strings.TrimSpace(q.Get("state"))
 	if code == "" || stateID == "" {
+		s.Metrics.IncCallback(codes.OutcomeMissingParams)
 		writeHTMLError(w, http.StatusBadRequest, "Missing OAuth code or state. Return to shiet and retry.")
 		return
 	}
@@ -247,27 +314,37 @@ func (s Server) googleCallback(w http.ResponseWriter, r *http.Request) {
 	now := s.now()
 	state, err := s.Store.ConsumeOAuthState(r.Context(), stateID, now)
 	if err != nil {
+		reason := codes.OutcomeStateError
 		switch {
 		case errors.Is(err, store.ErrAlreadyUsed):
+			reason = codes.OutcomeStateAlreadyUsed
+			s.Metrics.IncQuotaRisk(codes.QuotaStateReplay)
 			writeHTMLError(w, http.StatusBadRequest, "This Google authorization was already used. Return to shiet and start a new connect.")
 		case errors.Is(err, store.ErrExpired):
+			reason = codes.OutcomeStateExpired
 			writeHTMLError(w, http.StatusBadRequest, "This Google authorization expired. Return to shiet and start a new connect.")
 		case errors.Is(err, store.ErrNotFound):
+			reason = codes.OutcomeStateNotFound
 			writeHTMLError(w, http.StatusBadRequest, "Unknown Google authorization state. Return to shiet and start a new connect.")
 		default:
 			writeHTMLError(w, http.StatusInternalServerError, "Broker could not validate authorization state. Return to shiet and retry.")
 		}
+		s.Metrics.IncCallback(reason)
+		s.logInfo(codes.EventCallback, "outcome", reason)
 		return
 	}
 
 	tok, err := s.exchangeGoogleCode(r.Context(), code, state.PKCEVerifier)
 	if err != nil {
+		s.Metrics.IncCallback(codes.OutcomeTokenExchangeFail)
+		s.logInfo(codes.EventCallback, "outcome", codes.OutcomeTokenExchangeFail)
 		writeHTMLError(w, http.StatusBadGateway, "Broker could not exchange the Google authorization code. Return to shiet and retry.")
 		return
 	}
 
 	handoffCode, err := randomString(32)
 	if err != nil {
+		s.Metrics.IncCallback(codes.OutcomeHandoffMintFailed)
 		writeHTMLError(w, http.StatusInternalServerError, "Broker could not create a handoff code. Return to shiet and retry.")
 		return
 	}
@@ -282,6 +359,7 @@ func (s Server) googleCallback(w http.ResponseWriter, r *http.Request) {
 		},
 	)
 	if err != nil {
+		s.Metrics.IncCallback(codes.OutcomeSealFailed)
 		writeHTMLError(w, http.StatusInternalServerError, "Broker could not seal token material. Return to shiet and retry.")
 		return
 	}
@@ -301,16 +379,20 @@ func (s Server) googleCallback(w http.ResponseWriter, r *http.Request) {
 		ExpiresAt:             now.Add(s.Config.HandoffTTL),
 	}
 	if err := s.Store.SaveHandoff(r.Context(), handoff); err != nil {
+		s.Metrics.IncCallback(codes.OutcomeHandoffPersistFail)
 		writeHTMLError(w, http.StatusInternalServerError, "Broker could not persist the handoff. Return to shiet and retry.")
 		return
 	}
 
 	handoffURL, err := s.buildHandoffURL(state, handoffCode)
 	if err != nil {
+		s.Metrics.IncCallback(codes.OutcomeHandoffURLFailed)
 		writeHTMLError(w, http.StatusInternalServerError, "Broker could not build the desktop return link. Return to shiet and retry.")
 		return
 	}
 
+	s.Metrics.IncCallback(codes.OutcomeOK)
+	s.logInfo(codes.EventCallback, "outcome", codes.OutcomeOK, "ip_bucket", ipBucket)
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
 	_, _ = io.WriteString(w, callbackSuccessPage(handoffURL))
@@ -318,12 +400,20 @@ func (s Server) googleCallback(w http.ResponseWriter, r *http.Request) {
 
 func (s Server) exchangeHandoff(w http.ResponseWriter, r *http.Request) {
 	if s.Store == nil {
-		writeJSON(w, http.StatusServiceUnavailable, errorResponse{Error: "datastore_unavailable"})
+		writeJSON(w, http.StatusServiceUnavailable, errorResponse{Error: codes.DatastoreUnavailable})
 		return
 	}
+	if s.rejectAuthDisabled(w, codes.SurfaceHandoff) {
+		return
+	}
+	ipBucket := sourceIPBucket(r.RemoteAddr)
+	if s.rejectRateLimited(w, codes.SurfaceHandoff, ratelimit.Key(codes.LimitKeyHandoff, ipBucket), limitHandoff) {
+		return
+	}
+
 	var req handoffRequest
 	if err := decodeJSON(r.Body, &req); err != nil {
-		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "invalid_json"})
+		writeJSON(w, http.StatusBadRequest, errorResponse{Error: codes.InvalidJSON})
 		return
 	}
 	req.DesktopSessionID = strings.TrimSpace(req.DesktopSessionID)
@@ -331,33 +421,47 @@ func (s Server) exchangeHandoff(w http.ResponseWriter, r *http.Request) {
 	req.HandoffCode = strings.TrimSpace(req.HandoffCode)
 	req.HandoffVerifier = strings.TrimSpace(req.HandoffVerifier)
 	if req.DesktopSessionID == "" || req.BrokerState == "" || req.HandoffCode == "" || req.HandoffVerifier == "" {
-		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "handoff_fields_required"})
+		writeJSON(w, http.StatusBadRequest, errorResponse{Error: codes.HandoffFieldsRequired})
 		return
 	}
 
+	codeHash := hashHandoffCode(req.HandoffCode)
+	failKey := ratelimit.Key(codes.LimitKeyHandoffFail, ipBucket+"|"+req.DesktopSessionID+"|"+codeHash)
 	now := s.now()
 	challenge := pkceS256(req.HandoffVerifier)
 	rec, err := s.Store.ConsumeHandoff(
 		r.Context(),
-		hashHandoffCode(req.HandoffCode),
+		codeHash,
 		req.DesktopSessionID,
 		req.BrokerState,
 		challenge,
 		now,
 	)
 	if err != nil {
+		reason := codes.OutcomeConsumeFailed
+		code := codes.HandoffConsumeFailed
+		status := http.StatusInternalServerError
 		switch {
 		case errors.Is(err, store.ErrAlreadyUsed):
-			writeJSON(w, http.StatusBadRequest, errorResponse{Error: "handoff_already_used"})
+			reason, code, status = codes.OutcomeAlreadyUsed, codes.HandoffAlreadyUsed, http.StatusBadRequest
+			s.Metrics.IncQuotaRisk(codes.QuotaHandoffReplay)
 		case errors.Is(err, store.ErrExpired):
-			writeJSON(w, http.StatusBadRequest, errorResponse{Error: "handoff_expired"})
+			reason, code, status = codes.OutcomeExpired, codes.HandoffExpired, http.StatusBadRequest
 		case errors.Is(err, store.ErrNotFound):
-			writeJSON(w, http.StatusBadRequest, errorResponse{Error: "handoff_not_found"})
+			reason, code, status = codes.OutcomeNotFound, codes.HandoffNotFound, http.StatusBadRequest
 		case errors.Is(err, store.ErrMismatch):
-			writeJSON(w, http.StatusBadRequest, errorResponse{Error: "handoff_state_mismatch"})
-		default:
-			writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "handoff_consume_failed"})
+			reason, code, status = codes.OutcomeStateMismatch, codes.HandoffStateMismatch, http.StatusBadRequest
+			s.Metrics.IncQuotaRisk(codes.QuotaHandoffMismatch)
 		}
+		s.Metrics.IncHandoffFailure(reason)
+		s.logInfo(codes.EventHandoff, "outcome", reason, "ip_bucket", ipBucket)
+		if !s.allow(failKey, limitHandoffFailure) {
+			s.Metrics.IncRateLimited(codes.SurfaceHandoffFailure)
+			s.logInfo(codes.EventRateLimited, "surface", codes.SurfaceHandoffFailure, "ip_bucket", ipBucket)
+			writeJSON(w, http.StatusTooManyRequests, errorResponse{Error: codes.RateLimited})
+			return
+		}
+		writeJSON(w, status, errorResponse{Error: code})
 		return
 	}
 
@@ -367,7 +471,8 @@ func (s Server) exchangeHandoff(w http.ResponseWriter, r *http.Request) {
 		rec.EncryptedTokenPayload,
 	)
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: "handoff_payload_invalid"})
+		s.Metrics.IncHandoffFailure(codes.OutcomePayloadInvalid)
+		writeJSON(w, http.StatusInternalServerError, errorResponse{Error: codes.HandoffPayloadInvalid})
 		return
 	}
 
@@ -382,18 +487,35 @@ func (s Server) exchangeHandoff(w http.ResponseWriter, r *http.Request) {
 		resp.Token.TokenType = "Bearer"
 	}
 	resp.Token.Expiry = payload.Expiry
+	s.Metrics.IncHandoffOK()
+	s.logInfo(codes.EventHandoff, "outcome", codes.OutcomeOK, "ip_bucket", ipBucket)
 	writeJSON(w, http.StatusOK, resp)
 }
 
 func (s Server) refreshGoogleOAuth(w http.ResponseWriter, r *http.Request) {
+	if s.Config.RefreshDisabled {
+		s.Metrics.IncKillSwitch(codes.SurfaceRefresh)
+		s.logInfo(codes.EventKillSwitch, "surface", codes.SurfaceRefresh, "reason", codes.RefreshDisabled)
+		writeJSON(w, http.StatusForbidden, errorResponse{Error: codes.RefreshDisabled})
+		return
+	}
+	ipBucket := sourceIPBucket(r.RemoteAddr)
+	if s.rejectRateLimited(w, codes.SurfaceRefresh, ratelimit.Key(codes.LimitKeyRefresh, ipBucket), limitRefresh) {
+		return
+	}
+
 	var req refreshRequest
 	if err := decodeJSON(r.Body, &req); err != nil {
-		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "invalid_json"})
+		writeJSON(w, http.StatusBadRequest, errorResponse{Error: codes.InvalidJSON})
 		return
 	}
 	req.RefreshToken = strings.TrimSpace(req.RefreshToken)
+	req.AppVersion = strings.TrimSpace(req.AppVersion)
 	if req.RefreshToken == "" {
-		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "refresh_token_required"})
+		writeJSON(w, http.StatusBadRequest, errorResponse{Error: codes.RefreshTokenRequired})
+		return
+	}
+	if s.rejectAppVersionDisabled(w, codes.SurfaceRefresh, req.AppVersion) {
 		return
 	}
 
@@ -408,12 +530,24 @@ func (s Server) refreshGoogleOAuth(w http.ResponseWriter, r *http.Request) {
 
 	tok, err := s.postGoogleToken(r.Context(), form)
 	if err != nil {
-		var ge *googleTokenError
-		if errors.As(err, &ge) && ge.Code == "invalid_grant" {
-			writeJSON(w, http.StatusBadRequest, errorResponse{Error: "invalid_refresh_token"})
+		failKey := ratelimit.Key(codes.LimitKeyRefreshFail, ipBucket)
+		if !s.allow(failKey, limitRefreshFailure) {
+			s.Metrics.IncRateLimited(codes.SurfaceRefreshFailure)
+			s.logInfo(codes.EventRateLimited, "surface", codes.SurfaceRefreshFailure, "ip_bucket", ipBucket)
+			writeJSON(w, http.StatusTooManyRequests, errorResponse{Error: codes.RateLimited})
 			return
 		}
-		writeJSON(w, http.StatusBadGateway, errorResponse{Error: "google_token_refresh_failed"})
+		var ge *googleTokenError
+		if errors.As(err, &ge) && ge.Code == codes.GoogleInvalidGrant {
+			s.Metrics.IncRefreshFailure(codes.OutcomeInvalidGrant)
+			s.Metrics.IncQuotaRisk(codes.QuotaInvalidGrant)
+			s.logInfo(codes.EventRefresh, "outcome", codes.OutcomeInvalidGrant, "ip_bucket", ipBucket, "app_version", req.AppVersion)
+			writeJSON(w, http.StatusBadRequest, errorResponse{Error: codes.InvalidRefreshToken})
+			return
+		}
+		s.Metrics.IncRefreshFailure(codes.OutcomeGoogleFailed)
+		s.logInfo(codes.EventRefresh, "outcome", codes.OutcomeGoogleFailed, "ip_bucket", ipBucket)
+		writeJSON(w, http.StatusBadGateway, errorResponse{Error: codes.GoogleTokenRefreshFailed})
 		return
 	}
 
@@ -424,6 +558,8 @@ func (s Server) refreshGoogleOAuth(w http.ResponseWriter, r *http.Request) {
 		TokenType:    tok.TokenType,
 		Expiry:       now.Add(time.Duration(tok.ExpiresIn) * time.Second),
 	}
+	s.Metrics.IncRefreshOK()
+	s.logInfo(codes.EventRefresh, "outcome", codes.OutcomeOK, "ip_bucket", ipBucket, "app_version", req.AppVersion)
 	writeJSON(w, http.StatusOK, resp)
 }
 
@@ -441,27 +577,42 @@ func (e *googleTokenError) Error() string {
 
 // revokeGoogleOAuth asks Google to revoke a refresh token supplied by the
 // desktop. The broker does not persist the token or any account record.
+// Revoke stays available when auth/refresh kill switches are on so users can
+// disconnect during an incident.
 func (s Server) revokeGoogleOAuth(w http.ResponseWriter, r *http.Request) {
+	ipBucket := sourceIPBucket(r.RemoteAddr)
+	if s.rejectRateLimited(w, codes.SurfaceRevoke, ratelimit.Key(codes.LimitKeyRevoke, ipBucket), limitRevoke) {
+		return
+	}
+
 	var req revokeRequest
 	if err := decodeJSON(r.Body, &req); err != nil {
-		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "invalid_json"})
+		writeJSON(w, http.StatusBadRequest, errorResponse{Error: codes.InvalidJSON})
 		return
 	}
 	req.RefreshToken = strings.TrimSpace(req.RefreshToken)
+	req.Reason = strings.TrimSpace(req.Reason)
 	if req.RefreshToken == "" {
-		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "refresh_token_required"})
+		writeJSON(w, http.StatusBadRequest, errorResponse{Error: codes.RefreshTokenRequired})
 		return
 	}
-	// reason is accepted for forward-compat / ops logs; intentionally unused.
 
 	if err := s.revokeGoogleToken(r.Context(), req.RefreshToken); err != nil {
 		if errors.Is(err, errGoogleTokenAlreadyRevoked) {
+			s.Metrics.IncRevokeOK()
+			s.Metrics.IncRevokeOutcome(codes.OutcomeAlreadyRevoked)
+			s.logInfo(codes.EventRevoke, "outcome", codes.OutcomeAlreadyRevoked, "reason", req.Reason, "ip_bucket", ipBucket)
 			writeJSON(w, http.StatusOK, revokeResponse{Revoked: true})
 			return
 		}
-		writeJSON(w, http.StatusBadGateway, errorResponse{Error: "google_revoke_failed"})
+		s.Metrics.IncRevokeOutcome(codes.OutcomeGoogleFailed)
+		s.logInfo(codes.EventRevoke, "outcome", codes.OutcomeGoogleFailed, "reason", req.Reason, "ip_bucket", ipBucket)
+		writeJSON(w, http.StatusBadGateway, errorResponse{Error: codes.GoogleRevokeFailed})
 		return
 	}
+	s.Metrics.IncRevokeOK()
+	s.Metrics.IncRevokeOutcome(codes.OutcomeOK)
+	s.logInfo(codes.EventRevoke, "outcome", codes.OutcomeOK, "reason", req.Reason, "ip_bucket", ipBucket)
 	writeJSON(w, http.StatusOK, revokeResponse{Revoked: true})
 }
 
@@ -713,4 +864,52 @@ func sourceIPBucket(remoteAddr string) string {
 		uint16(ip16[4])<<8|uint16(ip16[5]),
 		uint16(ip16[6])<<8|uint16(ip16[7]),
 	)
+}
+
+func (s Server) allow(key string, limit int) bool {
+	if s.Limiter == nil {
+		return true
+	}
+	return s.Limiter.Allow(key, limit)
+}
+
+func (s Server) rejectRateLimited(w http.ResponseWriter, surface, key string, limit int) bool {
+	if s.allow(key, limit) {
+		return false
+	}
+	s.Metrics.IncRateLimited(surface)
+	ipBucket := ""
+	if parts := strings.SplitN(key, "|", 2); len(parts) == 2 {
+		ipBucket = parts[1]
+	}
+	s.logInfo(codes.EventRateLimited, "surface", surface, "ip_bucket", ipBucket)
+	writeJSON(w, http.StatusTooManyRequests, errorResponse{Error: codes.RateLimited})
+	return true
+}
+
+func (s Server) rejectAuthDisabled(w http.ResponseWriter, surface string) bool {
+	if !s.Config.AuthDisabled {
+		return false
+	}
+	s.Metrics.IncKillSwitch(surface)
+	s.logInfo(codes.EventKillSwitch, "surface", surface, "reason", codes.AuthDisabled)
+	writeJSON(w, http.StatusForbidden, errorResponse{Error: codes.AuthDisabled})
+	return true
+}
+
+func (s Server) rejectAppVersionDisabled(w http.ResponseWriter, surface, appVersion string) bool {
+	if !s.Config.AppVersionDisabled(appVersion) {
+		return false
+	}
+	s.Metrics.IncKillSwitch(surface + codes.KillSwitchVersionSuffix)
+	s.logInfo(codes.EventKillSwitch, "surface", surface, "reason", codes.AppVersionDisabled, "app_version", appVersion)
+	writeJSON(w, http.StatusForbidden, errorResponse{Error: codes.AppVersionDisabled})
+	return true
+}
+
+func (s Server) logInfo(msg string, args ...any) {
+	if s.Logger == nil {
+		return
+	}
+	s.Logger.Info(msg, args...)
 }
