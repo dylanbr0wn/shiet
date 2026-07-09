@@ -52,6 +52,16 @@ export interface IntegrationConnection {
   updatedAt: string;
 }
 
+export interface GitHubRepo {
+  id: number;
+  accountId: string;
+  externalId: string;
+  name: string;
+  fullName: string;
+  private: boolean;
+  selected: boolean;
+}
+
 export interface SyncResult {
   added: number;
   updated: number;
