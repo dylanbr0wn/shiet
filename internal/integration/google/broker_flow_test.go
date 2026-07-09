@@ -194,3 +194,96 @@ func TestBrokerFlowAuthorizeStartUnavailable(t *testing.T) {
 		t.Fatalf("want ErrBrokerUnavailable, got %v", err)
 	}
 }
+
+func TestBrokerFlowRefreshTokenSuccess(t *testing.T) {
+	var got map[string]any
+	broker := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost || r.URL.Path != "/v1/google/oauth/refresh" {
+			http.NotFound(w, r)
+			return
+		}
+		if err := json.NewDecoder(r.Body).Decode(&got); err != nil {
+			t.Fatal(err)
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"access_token": "access-fresh",
+			"token_type":   "Bearer",
+			"expiry":       time.Date(2026, 7, 8, 14, 0, 0, 0, time.UTC),
+		})
+	}))
+	t.Cleanup(broker.Close)
+
+	flow := &google.BrokerFlow{
+		BaseURL:    broker.URL,
+		HTTPClient: broker.Client(),
+		AppVersion: "0.1.0",
+		Platform:   "darwin-arm64",
+	}
+	tok, err := flow.RefreshToken(context.Background(), "refresh-old", []string{
+		"https://www.googleapis.com/auth/calendar.readonly",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if tok.AccessToken != "access-fresh" {
+		t.Fatalf("access: %q", tok.AccessToken)
+	}
+	if tok.RefreshToken != "refresh-old" {
+		t.Fatalf("expected original refresh kept, got %q", tok.RefreshToken)
+	}
+	if got["refresh_token"] != "refresh-old" {
+		t.Fatalf("request: %#v", got)
+	}
+	if got["app_version"] != "0.1.0" || got["platform"] != "darwin-arm64" {
+		t.Fatalf("metadata: %#v", got)
+	}
+}
+
+func TestBrokerFlowRefreshTokenRotatedRefresh(t *testing.T) {
+	broker := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"access_token":  "access-fresh",
+			"refresh_token": "refresh-new",
+			"token_type":    "Bearer",
+			"expiry":        time.Date(2026, 7, 8, 14, 0, 0, 0, time.UTC),
+		})
+	}))
+	t.Cleanup(broker.Close)
+
+	flow := &google.BrokerFlow{BaseURL: broker.URL, HTTPClient: broker.Client()}
+	tok, err := flow.RefreshToken(context.Background(), "refresh-old", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if tok.RefreshToken != "refresh-new" {
+		t.Fatalf("refresh: %q", tok.RefreshToken)
+	}
+}
+
+func TestBrokerFlowRefreshTokenInvalid(t *testing.T) {
+	broker := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusBadRequest)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "invalid_refresh_token"})
+	}))
+	t.Cleanup(broker.Close)
+
+	flow := &google.BrokerFlow{BaseURL: broker.URL, HTTPClient: broker.Client()}
+	_, err := flow.RefreshToken(context.Background(), "bad", nil)
+	if !errors.Is(err, google.ErrInvalidRefreshToken) {
+		t.Fatalf("want ErrInvalidRefreshToken, got %v", err)
+	}
+}
+
+func TestBrokerFlowRefreshTokenUnavailable(t *testing.T) {
+	broker := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusServiceUnavailable)
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "datastore_unavailable"})
+	}))
+	t.Cleanup(broker.Close)
+
+	flow := &google.BrokerFlow{BaseURL: broker.URL, HTTPClient: broker.Client()}
+	_, err := flow.RefreshToken(context.Background(), "refresh-old", nil)
+	if !errors.Is(err, google.ErrBrokerUnavailable) {
+		t.Fatalf("want ErrBrokerUnavailable, got %v", err)
+	}
+}

@@ -2,6 +2,7 @@ package httpclient_test
 
 import (
 	"context"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -203,5 +204,160 @@ func TestClientRetriesRateLimit(t *testing.T) {
 	}
 	if calls.Load() != 2 {
 		t.Fatalf("calls: %d", calls.Load())
+	}
+}
+
+type stubRefresher struct {
+	token secrets.Token
+	err   error
+	calls int
+}
+
+func (s *stubRefresher) Refresh(ctx context.Context, current secrets.Token) (secrets.Token, error) {
+	s.calls++
+	if s.err != nil {
+		return secrets.Token{}, s.err
+	}
+	return s.token, nil
+}
+
+func TestClientUsesRefresherOn401(t *testing.T) {
+	store := secrets.NewMemoryStore()
+	_ = store.Set("google", "user@example.com", secrets.Token{
+		AccessToken:  "expired",
+		RefreshToken: "refresh",
+		Expiry:       time.Now().Add(-time.Hour),
+	})
+
+	conn, err := db.Open(t.TempDir() + "/test.db")
+	if err != nil {
+		t.Fatalf("open db: %v", err)
+	}
+	t.Cleanup(func() { _ = conn.Close() })
+	if err := db.Migrate(conn); err != nil {
+		t.Fatalf("migrate db: %v", err)
+	}
+	registry := connection.NewRegistry(conn)
+	if _, err := registry.Upsert(context.Background(), connection.UpsertInput{
+		Provider:     "google",
+		AccountID:    "user@example.com",
+		AccountLabel: "Work Google",
+		Scopes:       []string{"calendar.readonly"},
+		Status:       connection.StatusConnected,
+	}); err != nil {
+		t.Fatalf("upsert connection: %v", err)
+	}
+
+	var calls atomic.Int32
+	apiServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		n := calls.Add(1)
+		if n == 1 {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		if r.Header.Get("Authorization") != "Bearer broker-fresh" {
+			t.Fatalf("expected refreshed token, got %q", r.Header.Get("Authorization"))
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer apiServer.Close()
+
+	refresher := &stubRefresher{token: secrets.Token{
+		AccessToken:  "broker-fresh",
+		RefreshToken: "refresh",
+		TokenType:    "Bearer",
+		Expiry:       time.Now().Add(time.Hour),
+	}}
+	client := httpclient.Client{
+		Provider:  "google",
+		AccountID: "user@example.com",
+		Store:     store,
+		Registry:  registry,
+		Refresher: refresher,
+	}
+
+	req, _ := http.NewRequest(http.MethodGet, apiServer.URL, nil)
+	resp, err := client.Do(context.Background(), req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status: %d", resp.StatusCode)
+	}
+	if refresher.calls != 1 {
+		t.Fatalf("refresher calls: %d", refresher.calls)
+	}
+	if calls.Load() != 2 {
+		t.Fatalf("api calls: %d", calls.Load())
+	}
+
+	got, err := store.Get("google", "user@example.com")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.AccessToken != "broker-fresh" {
+		t.Fatalf("stored token: %+v", got)
+	}
+	storedConnection, err := registry.Get(context.Background(), "google", "user@example.com")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if storedConnection.Status != connection.StatusConnected {
+		t.Fatalf("connection status: %q", storedConnection.Status)
+	}
+}
+
+func TestClientRefresherFailureMarksNeedsReauth(t *testing.T) {
+	store := secrets.NewMemoryStore()
+	_ = store.Set("google", "user@example.com", secrets.Token{
+		AccessToken:  "expired",
+		RefreshToken: "bad-refresh",
+	})
+
+	conn, err := db.Open(t.TempDir() + "/test.db")
+	if err != nil {
+		t.Fatalf("open db: %v", err)
+	}
+	t.Cleanup(func() { _ = conn.Close() })
+	if err := db.Migrate(conn); err != nil {
+		t.Fatalf("migrate db: %v", err)
+	}
+	registry := connection.NewRegistry(conn)
+	if _, err := registry.Upsert(context.Background(), connection.UpsertInput{
+		Provider:     "google",
+		AccountID:    "user@example.com",
+		AccountLabel: "Work Google",
+		Scopes:       []string{"calendar.readonly"},
+		Status:       connection.StatusConnected,
+	}); err != nil {
+		t.Fatalf("upsert connection: %v", err)
+	}
+
+	apiServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusUnauthorized)
+	}))
+	defer apiServer.Close()
+
+	client := httpclient.Client{
+		Provider:  "google",
+		AccountID: "user@example.com",
+		Store:     store,
+		Registry:  registry,
+		Refresher: &stubRefresher{err: errors.New("invalid refresh token")},
+	}
+
+	req, _ := http.NewRequest(http.MethodGet, apiServer.URL, nil)
+	_, err = client.Do(context.Background(), req)
+	if err == nil {
+		t.Fatal("expected refresh failure")
+	}
+
+	storedConnection, err := registry.Get(context.Background(), "google", "user@example.com")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if storedConnection.Status != connection.StatusNeedsReauth {
+		t.Fatalf("connection status: %q", storedConnection.Status)
 	}
 }

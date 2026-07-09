@@ -75,6 +75,20 @@ type handoffResponse struct {
 	} `json:"token"`
 }
 
+type refreshRequest struct {
+	RefreshToken string   `json:"refresh_token"`
+	Scope        []string `json:"scope,omitempty"`
+	AppVersion   string   `json:"app_version,omitempty"`
+	Platform     string   `json:"platform,omitempty"`
+}
+
+type refreshResponse struct {
+	AccessToken  string    `json:"access_token"`
+	RefreshToken string    `json:"refresh_token,omitempty"`
+	TokenType    string    `json:"token_type"`
+	Expiry       time.Time `json:"expiry"`
+}
+
 type statusResponse struct {
 	Status string `json:"status"`
 }
@@ -100,7 +114,7 @@ func (s Server) Handler() http.Handler {
 	mux.HandleFunc("POST /v1/google/oauth/start", s.startGoogleOAuth)
 	mux.HandleFunc("GET /v1/google/oauth/callback", s.googleCallback)
 	mux.HandleFunc("POST /v1/google/oauth/handoff", s.exchangeHandoff)
-	mux.HandleFunc("POST /v1/google/oauth/refresh", notImplemented("google_refresh"))
+	mux.HandleFunc("POST /v1/google/oauth/refresh", s.refreshGoogleOAuth)
 	mux.HandleFunc("POST /v1/google/oauth/revoke", notImplemented("google_revoke"))
 	return mux
 }
@@ -360,6 +374,60 @@ func (s Server) exchangeHandoff(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, resp)
 }
 
+func (s Server) refreshGoogleOAuth(w http.ResponseWriter, r *http.Request) {
+	var req refreshRequest
+	if err := decodeJSON(r.Body, &req); err != nil {
+		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "invalid_json"})
+		return
+	}
+	req.RefreshToken = strings.TrimSpace(req.RefreshToken)
+	if req.RefreshToken == "" {
+		writeJSON(w, http.StatusBadRequest, errorResponse{Error: "refresh_token_required"})
+		return
+	}
+
+	form := url.Values{}
+	form.Set("grant_type", "refresh_token")
+	form.Set("refresh_token", req.RefreshToken)
+	form.Set("client_id", s.Config.GoogleClientID)
+	form.Set("client_secret", s.Config.GoogleClientSecret)
+	if len(req.Scope) > 0 {
+		form.Set("scope", strings.Join(req.Scope, " "))
+	}
+
+	tok, err := s.postGoogleToken(r.Context(), form)
+	if err != nil {
+		var ge *googleTokenError
+		if errors.As(err, &ge) && ge.Code == "invalid_grant" {
+			writeJSON(w, http.StatusBadRequest, errorResponse{Error: "invalid_refresh_token"})
+			return
+		}
+		writeJSON(w, http.StatusBadGateway, errorResponse{Error: "google_token_refresh_failed"})
+		return
+	}
+
+	now := s.now()
+	resp := refreshResponse{
+		AccessToken:  tok.AccessToken,
+		RefreshToken: tok.RefreshToken,
+		TokenType:    tok.TokenType,
+		Expiry:       now.Add(time.Duration(tok.ExpiresIn) * time.Second),
+	}
+	writeJSON(w, http.StatusOK, resp)
+}
+
+type googleTokenError struct {
+	Code string
+	Desc string
+}
+
+func (e *googleTokenError) Error() string {
+	if e.Desc != "" {
+		return fmt.Sprintf("google token error %s: %s", e.Code, e.Desc)
+	}
+	return fmt.Sprintf("google token error %s", e.Code)
+}
+
 func (s Server) exchangeGoogleCode(ctx context.Context, code, pkceVerifier string) (googleTokenResponse, error) {
 	form := url.Values{}
 	form.Set("grant_type", "authorization_code")
@@ -369,6 +437,14 @@ func (s Server) exchangeGoogleCode(ctx context.Context, code, pkceVerifier strin
 	form.Set("redirect_uri", s.Config.RedirectURI())
 	form.Set("code_verifier", pkceVerifier)
 
+	tok, err := s.postGoogleToken(ctx, form)
+	if err != nil {
+		return googleTokenResponse{}, fmt.Errorf("google token exchange failed")
+	}
+	return tok, nil
+}
+
+func (s Server) postGoogleToken(ctx context.Context, form url.Values) (googleTokenResponse, error) {
 	tokenURL := s.GoogleTokenURL
 	if tokenURL == "" {
 		tokenURL = defaultGoogleToken
@@ -397,7 +473,11 @@ func (s Server) exchangeGoogleCode(ctx context.Context, code, pkceVerifier strin
 		return googleTokenResponse{}, err
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 || tok.AccessToken == "" || tok.Error != "" {
-		return googleTokenResponse{}, fmt.Errorf("google token exchange failed")
+		code := tok.Error
+		if code == "" {
+			code = "token_request_failed"
+		}
+		return googleTokenResponse{}, &googleTokenError{Code: code, Desc: tok.ErrorDesc}
 	}
 	if tok.TokenType == "" {
 		tok.TokenType = "Bearer"

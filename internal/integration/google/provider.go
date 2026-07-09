@@ -257,13 +257,31 @@ func (p *Provider) getJSON(ctx context.Context, accountID, path string, query ur
 }
 
 func (p *Provider) httpClient(accountID string) *httpclient.Client {
-	return &httpclient.Client{
+	client := &httpclient.Client{
 		Provider:  p.Config.Provider,
 		AccountID: accountID,
 		Config:    p.Config,
 		Store:     p.Store,
 		Registry:  p.Registry,
 	}
+	if p.usesBrokerAuth() {
+		base := strings.TrimSpace(p.BrokerBaseURL)
+		client.Refresher = &brokerTokenRefresher{
+			flow:   &BrokerFlow{BaseURL: base},
+			scopes: append([]string(nil), p.Config.Scopes...),
+		}
+	}
+	return client
+}
+
+// brokerTokenRefresher adapts BrokerFlow to httpclient.TokenRefresher.
+type brokerTokenRefresher struct {
+	flow   *BrokerFlow
+	scopes []string
+}
+
+func (r *brokerTokenRefresher) Refresh(ctx context.Context, current secrets.Token) (secrets.Token, error) {
+	return r.flow.RefreshToken(ctx, current.RefreshToken, r.scopes)
 }
 
 func (p *Provider) baseURL() string {
