@@ -15,6 +15,7 @@ import {
   listAIModels,
   listCalendars,
   listCategories,
+  listEventCategoryOverlays,
   listEvents,
   listGapFills,
   listIntegrationConnections,
@@ -62,6 +63,8 @@ export const clockrQueryKeys = {
   periods: () => [...clockrQueryKeys.all, "periods"] as const,
   periodEvents: (periodId: number) =>
     [...clockrQueryKeys.period(periodId), "events"] as const,
+  periodEventCategoryOverlays: (periodId: number) =>
+    [...clockrQueryKeys.period(periodId), "eventCategoryOverlays"] as const,
   periodGapFills: (periodId: number) =>
     [...clockrQueryKeys.period(periodId), "gapFills"] as const,
   periodReviewItems: (periodId: number) =>
@@ -144,6 +147,14 @@ export function useDeleteCategory() {
     onSuccess: () => {
       invalidateCategoryQueries(queryClient);
     },
+  });
+}
+
+export function useEventCategoryOverlays(periodId: number | null | undefined) {
+  return useQuery({
+    enabled: typeof periodId === "number",
+    queryKey: clockrQueryKeys.periodEventCategoryOverlays(periodId ?? 0),
+    queryFn: () => listEventCategoryOverlays(periodId as number),
   });
 }
 
@@ -617,6 +628,9 @@ export function useSyncPeriod() {
       });
       void queryClient.invalidateQueries({
         queryKey: clockrQueryKeys.periodEvents(periodID),
+      });
+      void queryClient.invalidateQueries({
+        queryKey: clockrQueryKeys.periodEventCategoryOverlays(periodID),
       });
       void queryClient.invalidateQueries({
         queryKey: clockrQueryKeys.periodReviewItems(periodID),
