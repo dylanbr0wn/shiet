@@ -50,8 +50,20 @@ func main() {
 		MinWidth:  1024,
 		MinHeight: 680,
 		AssetServer: &assetserver.Options{
-			Assets:  assets,
-			Handler: http.StripPrefix("/rpc", appapi.NewHandler(app.Svc)),
+			Assets: assets,
+			Handler: http.StripPrefix("/rpc", appapi.NewHandler(appapi.Dependencies{
+				Service:         app.Svc,
+				SyncPeriod:      app.Svc.SyncPeriod,
+				ListConnections: app.registry.List,
+				RefreshGitHubRepos: func(ctx context.Context, accountID string) error {
+					_, err := app.github.SyncRepos(ctx, accountID)
+					return err
+				},
+				RefreshSlackChannels: func(ctx context.Context, accountID string) error {
+					_, err := app.slack.SyncChannels(ctx, accountID)
+					return err
+				},
+			})),
 		},
 		Frameless:        false,
 		BackgroundColour: &options.RGBA{R: 0, G: 0, B: 0, A: 0},
@@ -64,7 +76,6 @@ func main() {
 		OnShutdown: app.shutdown,
 		Bind: []interface{}{
 			app,
-			app.Svc,
 		},
 	})
 

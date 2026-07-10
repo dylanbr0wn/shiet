@@ -26,9 +26,10 @@ of moving local SQLite/keychain data remain separate architecture decisions.
 
 Use versioned Protobuf contracts and Connect for portable shiet APIs:
 
-- `shiet.app.v1` contains application operations that can make sense on either
-  a desktop-local or future hosted service. The first vertical slice is period
-  listing and current-period creation.
+- `shiet.app.v1` contains every application operation that can make sense on
+  either a desktop-local or future hosted service. Its versioned services cover
+  periods, categories, calendars and sync, schedules and review decisions,
+  settings, integration metadata, and export rendering/templates.
 - `shiet.broker.v1` contains the provider-neutral OAuth broker start, handoff,
   refresh, and revoke operations. Generated messages replace duplicated wire
   shapes in new desktop clients.
@@ -42,13 +43,26 @@ does not move business rules into the transport. Generated Protobuf messages
 remain behind `frontend/src/lib/api/shietService.ts`, which maps `int64` IDs to
 JavaScript numbers only after checking the safe-integer range.
 
+Wails binds only operations whose implementation is intrinsically desktop
+native: OAuth browser/loopback and keychain flows, local AI
+discovery/configuration, and the native save
+dialog. Export content is rendered through Connect and then passed to the
+native save adapter. `service.Service` itself is not Wails-bound.
+
+Low-level dependency and merge seams (`SetCalendarSync`, `SetEvidence`, and
+`SyncEvents`) are internal service APIs, not frontend operations, and are
+intentionally exposed through neither Connect nor Wails. The explicit Connect
+surface includes the previously bound portable reads (`GetPeriod`,
+`GetPeriodByRange`, `GetCategory`, `GetEvent`, `GetExportTemplate`) and the
+period export aggregation.
+
 The broker replaces its handwritten REST operations with the generated Connect
 service. There are no released users requiring a compatibility period, so this
 branch is a hard transport switch: desktop clients use the generated Connect-Go
 client and the broker exposes no REST aliases or fallback behavior for start,
 handoff, refresh, or revoke.
 
-Google and GitHub callbacks remain ordinary HTTP GET routes because providers
+Google, GitHub, and Slack callbacks remain ordinary HTTP GET routes because providers
 navigate the user agent to those endpoints with `code` and `state`. Health,
 readiness, and Prometheus metrics also remain ordinary HTTP endpoints.
 
@@ -61,13 +75,13 @@ readiness, and Prometheus metrics also remain ordinary HTTP endpoints.
   browser client needs an explicit application-session/BFF decision before it
   may use token-bearing operations.
 - Stable broker error identifiers are returned as Connect error details.
-- Google is the only provider supporting refresh. GitHub refresh returns
+- Google is the only provider supporting refresh. GitHub and Slack refresh return
   `Unimplemented`; revoke validates that Google supplies a refresh token and
-  GitHub supplies an access token.
+  GitHub and Slack supply access tokens.
 - Wails v2's AssetServer supports unary POST handlers, but its documentation
   warns about Vite 5 development-server routing and unsupported response
-  streaming on Windows. This slice is unary, and its Connect POST was verified
-  through both the packaged app and the Wails development server. If a future
+  streaming on Windows. The application services are unary and share the same
+  AssetServer handler path verified by the initial period slice. If a future
   transport shape proves unreliable, use a loopback-only server with a
   per-process capability token and exact-origin CORS rather than exposing an
   unauthenticated local port.
@@ -85,12 +99,12 @@ Appropriate for trusted server-to-server traffic, but browser clients cannot
 use native gRPC directly. A separate gRPC-Web layer or proxy would still be
 required.
 
-### Replace every Wails method immediately
+### Route native capabilities through Connect
 
-Rejected as an unsafe horizontal migration. Native-only capabilities such as
-file dialogs, clipboard access, keychain storage, and desktop handoff belong
-behind platform adapters. Portable operations can move incrementally through
-the stable frontend API facade.
+Rejected because a network-shaped contract does not make file dialogs,
+keychain access, local runtime discovery, or desktop OAuth handoff portable.
+Those operations remain explicit platform adapters while the complete portable
+surface uses Connect.
 
 ### Keep REST alongside Connect
 

@@ -32,7 +32,7 @@ func TestPeriodServiceEnsuresAndListsCurrentPeriod(t *testing.T) {
 	}
 
 	client := appv1connect.NewPeriodServiceClient(&http.Client{
-		Transport: handlerTransport{handler: appapi.NewHandler(service.New(conn))},
+		Transport: handlerTransport{handler: appapi.NewHandler(appapi.Dependencies{Service: service.New(conn)})},
 	}, "http://shiet.test")
 
 	ensured, err := client.EnsureCurrentPeriod(context.Background(), connect.NewRequest(&appv1.EnsureCurrentPeriodRequest{
@@ -55,6 +55,14 @@ func TestPeriodServiceEnsuresAndListsCurrentPeriod(t *testing.T) {
 	}
 	if got, want := listed.Msg.Periods[0].Id, ensured.Msg.Period.Id; got != want {
 		t.Fatalf("period id = %d, want %d", got, want)
+	}
+	got, err := client.GetPeriod(context.Background(), connect.NewRequest(&appv1.GetPeriodRequest{Id: ensured.Msg.Period.Id}))
+	if err != nil || got.Msg.Period == nil || got.Msg.Period.Id != ensured.Msg.Period.Id {
+		t.Fatalf("get period = %#v, err %v", got, err)
+	}
+	byRange, err := client.GetPeriodByRange(context.Background(), connect.NewRequest(&appv1.GetPeriodByRangeRequest{StartDate: ensured.Msg.Period.StartDate, EndDate: ensured.Msg.Period.EndDate}))
+	if err != nil || byRange.Msg.Period == nil || byRange.Msg.Period.Id != ensured.Msg.Period.Id {
+		t.Fatalf("get period by range = %#v, err %v", byRange, err)
 	}
 }
 

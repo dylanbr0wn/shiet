@@ -4,12 +4,10 @@ package appapi
 import (
 	"context"
 	"errors"
-	"net/http"
 	"time"
 
 	"connectrpc.com/connect"
 	appv1 "github.com/dylanbr0wn/shiet/gen/shiet/app/v1"
-	"github.com/dylanbr0wn/shiet/gen/shiet/app/v1/appv1connect"
 	"github.com/dylanbr0wn/shiet/internal/service"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
@@ -22,13 +20,6 @@ func NewPeriodService(svc *service.Service) *PeriodService {
 	return &PeriodService{service: svc}
 }
 
-func NewHandler(svc *service.Service) http.Handler {
-	mux := http.NewServeMux()
-	path, handler := appv1connect.NewPeriodServiceHandler(NewPeriodService(svc))
-	mux.Handle(path, handler)
-	return mux
-}
-
 func (s *PeriodService) ListPeriods(ctx context.Context, _ *connect.Request[appv1.ListPeriodsRequest]) (*connect.Response[appv1.ListPeriodsResponse], error) {
 	periods, err := s.service.ListPeriods(ctx)
 	if err != nil {
@@ -39,6 +30,31 @@ func (s *PeriodService) ListPeriods(ctx context.Context, _ *connect.Request[appv
 		out.Periods[i] = toProtoPeriod(periods[i])
 	}
 	return connect.NewResponse(out), nil
+}
+
+func (s *PeriodService) GetPeriod(ctx context.Context, req *connect.Request[appv1.GetPeriodRequest]) (*connect.Response[appv1.GetPeriodResponse], error) {
+	if err := requireID(req.Msg.Id, "id"); err != nil {
+		return nil, err
+	}
+	period, err := s.service.GetPeriod(ctx, req.Msg.Id)
+	if err != nil {
+		return nil, mapServiceError(err)
+	}
+	return connect.NewResponse(&appv1.GetPeriodResponse{Period: toProtoPeriod(period)}), nil
+}
+
+func (s *PeriodService) GetPeriodByRange(ctx context.Context, req *connect.Request[appv1.GetPeriodByRangeRequest]) (*connect.Response[appv1.GetPeriodByRangeResponse], error) {
+	if _, err := time.Parse("2006-01-02", req.Msg.StartDate); err != nil {
+		return nil, invalidArgument("start_date must be a YYYY-MM-DD date")
+	}
+	if _, err := time.Parse("2006-01-02", req.Msg.EndDate); err != nil {
+		return nil, invalidArgument("end_date must be a YYYY-MM-DD date")
+	}
+	period, err := s.service.GetPeriodByRange(ctx, req.Msg.StartDate, req.Msg.EndDate)
+	if err != nil {
+		return nil, mapServiceError(err)
+	}
+	return connect.NewResponse(&appv1.GetPeriodByRangeResponse{Period: toProtoPeriod(period)}), nil
 }
 
 func (s *PeriodService) EnsureCurrentPeriod(ctx context.Context, req *connect.Request[appv1.EnsureCurrentPeriodRequest]) (*connect.Response[appv1.EnsureCurrentPeriodResponse], error) {
@@ -82,6 +98,18 @@ func mapServiceError(err error) error {
 		return connect.NewError(connect.CodeDeadlineExceeded, errors.New("request deadline exceeded"))
 	case errors.Is(err, service.ErrNotFound):
 		return connect.NewError(connect.CodeNotFound, errors.New("resource not found"))
+	case errors.Is(err, service.ErrInvalidInput):
+		return connect.NewError(connect.CodeInvalidArgument, errors.New("request is invalid"))
+	case errors.Is(err, service.ErrFailedPrecondition):
+		return connect.NewError(connect.CodeFailedPrecondition, errors.New("operation precondition is not satisfied"))
+	case errors.Is(err, service.ErrCategoryInUse):
+		return connect.NewError(connect.CodeFailedPrecondition, errors.New("category is in use"))
+	case errors.Is(err, service.ErrExportTemplateBuiltin):
+		return connect.NewError(connect.CodeFailedPrecondition, errors.New("builtin export templates cannot be modified"))
+	case errors.Is(err, service.ErrCalendarSyncNotConfigured), errors.Is(err, service.ErrNoConnectedAccounts):
+		return connect.NewError(connect.CodeFailedPrecondition, errors.New("calendar sync is not configured"))
+	case errors.Is(err, service.ErrNeedsReauth):
+		return connect.NewError(connect.CodeUnauthenticated, errors.New("calendar connection needs reauthentication"))
 	default:
 		return connect.NewError(connect.CodeInternal, errors.New("internal service error"))
 	}

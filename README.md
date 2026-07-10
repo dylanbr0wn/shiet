@@ -82,11 +82,13 @@ credentials). Broker base URL: `google.broker_base_url`.
 
 ```
 .
-├── app.go / main.go / integrations.go   # Wails app bindings
+├── app.go / main.go / integrations.go   # Native Wails adapters and app wiring
 ├── cmd/
 │   ├── db/                              # DB migrate/seed CLI
 │   └── oauth-broker/                    # Deployable OAuth broker
+├── internal/api/appapi/                 # Portable Connect application handlers
 ├── internal/                            # Go services, DB, AI, broker, config
+├── proto/shiet/                         # Versioned app and broker contracts
 ├── frontend/                            # React + Vite + shadcn/ui (pnpm)
 ├── docs/
 │   ├── adr/                             # Architecture decisions

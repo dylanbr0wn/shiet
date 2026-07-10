@@ -1,34 +1,37 @@
 import { createClient, type Client } from "@connectrpc/connect";
-import { createConnectTransport } from "@connectrpc/connect-web";
 
 import {
   PeriodService,
   type Period as WirePeriod,
 } from "@/gen/shiet/app/v1/period_pb";
 import type { Period } from "./types";
+import { rpcTransport } from "./rpcTransport";
 
 let client: Client<typeof PeriodService> | undefined;
 
 function periodClient() {
   client ??= createClient(
     PeriodService,
-    createConnectTransport({ baseUrl: rpcBaseUrl() }),
+    rpcTransport(),
   );
   return client;
-}
-
-function rpcBaseUrl() {
-  const configured = import.meta.env.VITE_SHIET_RPC_BASE_URL?.trim();
-  if (configured) {
-    return configured.replace(/\/$/, "");
-  }
-  const current = new URL(window.location.href);
-  return `${current.protocol}//${current.host}/rpc`;
 }
 
 export async function listPeriodsRPC() {
   const response = await periodClient().listPeriods({});
   return response.periods.map(mapPeriod);
+}
+
+export async function getPeriodRPC(id: number) {
+  const response = await periodClient().getPeriod({ id: BigInt(id) });
+  if (!response.period) throw new Error("get period response is missing period");
+  return mapPeriod(response.period);
+}
+
+export async function getPeriodByRangeRPC(startDate: string, endDate: string) {
+  const response = await periodClient().getPeriodByRange({ startDate, endDate });
+  if (!response.period) throw new Error("get period by range response is missing period");
+  return mapPeriod(response.period);
 }
 
 export async function ensureCurrentPeriodRPC(today: string, ianaTz: string) {
