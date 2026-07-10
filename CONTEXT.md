@@ -31,3 +31,9 @@ database.
   App secret. GitHub OAuth App user tokens are handed to the desktop keychain,
   are not refreshed by the broker, and are revoked through the broker on
   disconnect. Local/BYO OAuth and PAT connect remain available.
+
+## Related docs
+
+- [DESIGN.md](DESIGN.md) — product shape, core loop, schema intent, roadmap
+- [docs/oauth-broker.md](docs/oauth-broker.md) — broker operator runbook
+- [README.md](README.md) — setup, build, config

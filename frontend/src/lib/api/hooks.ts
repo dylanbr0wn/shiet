@@ -14,6 +14,7 @@ import {
   discoverLocalAIEndpoints,
   ensureCurrentPeriod,
   excludeEvent,
+  getGoogleAuthStatus,
   getSetting,
   githubAuthMode,
   githubOAuthAvailable,
@@ -82,6 +83,8 @@ export const shietQueryKeys = {
   selectedCalendars: () =>
     [...shietQueryKeys.calendars(), "selected"] as const,
   connections: () => [...shietQueryKeys.all, "connections"] as const,
+  googleAuthStatus: () =>
+    [...shietQueryKeys.all, "googleAuthStatus"] as const,
   githubRepos: () => [...shietQueryKeys.all, "githubRepos"] as const,
   githubAuthMode: () => [...shietQueryKeys.all, "githubAuthMode"] as const,
   githubOAuthAvailable: () =>
@@ -557,6 +560,13 @@ export function useIntegrationConnections() {
   return useQuery({
     queryKey: shietQueryKeys.connections(),
     queryFn: listIntegrationConnections,
+  });
+}
+
+export function useGoogleAuthStatus() {
+  return useQuery({
+    queryKey: shietQueryKeys.googleAuthStatus(),
+    queryFn: getGoogleAuthStatus,
   });
 }
 

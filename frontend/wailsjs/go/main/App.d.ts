@@ -35,6 +35,8 @@ export function ExcludeEvent(arg1:service.ExcludeEventInput):Promise<service.Exc
 
 export function GetSetting(arg1:string):Promise<string>;
 
+export function GetGoogleAuthStatus():Promise<main.GoogleAuthStatus>;
+
 export function GitHubAuthMode():Promise<string>;
 
 export function GitHubOAuthAvailable():Promise<boolean>;
