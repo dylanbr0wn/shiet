@@ -14,6 +14,7 @@ see [ADR-0001](docs/adr/0001-secret-only-google-oauth-broker.md) and
 Prerequisites: Go 1.26+, [pnpm](https://pnpm.io/), [Wails CLI](https://wails.io/docs/gettingstarted/installation), and [Buf](https://buf.build/docs/cli/installation/).
 
 ```bash
+buf generate
 pnpm -C frontend install
 wails dev
 ```
@@ -38,6 +39,9 @@ Regenerate the shared Connect/Protobuf APIs after editing `proto/`:
 buf lint
 buf generate
 ```
+
+Generated Go and TypeScript API sources are ignored by Git. Run
+`buf generate` after cloning and whenever a protobuf contract changes.
 
 ## Building
 

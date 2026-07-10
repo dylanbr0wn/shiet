@@ -24,10 +24,8 @@ jobs:
       - name: Lint Protobuf contracts
         run: buf lint
 
-      - name: Check generated API sources
-        run: |
-          buf generate
-          git diff --exit-code -- gen frontend/src/gen
+      - name: Generate API sources
+        run: buf generate
 
       - name: Check Protobuf compatibility
         run: |
@@ -56,6 +54,13 @@ jobs:
           node-version: 22
           cache: pnpm
           cache-dependency-path: frontend/pnpm-lock.yaml
+
+      - uses: bufbuild/buf-setup-action@v1
+        with:
+          version: 1.71.0
+
+      - name: Generate API sources
+        run: buf generate
 
       - name: Install dependencies
         working-directory: frontend

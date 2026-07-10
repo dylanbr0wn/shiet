@@ -34,7 +34,8 @@ Use versioned Protobuf contracts and Connect for portable shiet APIs:
   shapes in new desktop clients.
 - Go Connect handlers are the RPC implementation. They accept Connect,
   gRPC-Web, and gRPC protocols; browser TypeScript uses the Connect protocol.
-- Generated sources are checked in and generator versions are pinned with Buf.
+- Generated sources are Git-ignored and reproduced locally and in CI from
+  generator versions pinned with Buf.
 
 The application RPC handler delegates to the existing `service.Service`; it
 does not move business rules into the transport. Generated Protobuf messages

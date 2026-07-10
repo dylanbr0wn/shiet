@@ -54,7 +54,7 @@ startup. There are no separate backing services to run.
 
 | Job | Command |
 |-----|---------|
-| Protobuf contracts | `buf lint && buf generate` cleanliness and breaking checks |
+| Protobuf contracts | `buf lint`, generation, and breaking checks |
 | Go tests | `go test ./internal/...` |
 | Frontend typecheck | `pnpm -C frontend install --frozen-lockfile && pnpm -C frontend typecheck` |
 | Frontend tests | `pnpm -C frontend install --frozen-lockfile && pnpm -C frontend test` |
@@ -67,6 +67,7 @@ Lint is not gated in CI yet (2 pre-existing `react-refresh/only-export-component
 - Frontend lint: `pnpm -C frontend lint` (note: 2 pre-existing `react-refresh/only-export-components`
   errors in `frontend/src/components/ui/{tabs,toggle}.tsx` — not introduced by setup).
 - Frontend tests: `pnpm -C frontend test` (vitest).
+- Generate Connect/Protobuf sources: `buf generate` (outputs are Git-ignored).
 - Go tests: `go test ./internal/...` (service layer has the tests).
 - Run only the Vite frontend standalone (no Go): `pnpm --dir frontend dev` (see `.claude/launch.json`).
 - DB dev tooling (migrate/seed/reset a dev DB): `./scripts/db.sh`; regenerate sqlc: `./scripts/sqlc-gen.sh`
