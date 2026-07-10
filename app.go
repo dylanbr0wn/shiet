@@ -13,6 +13,7 @@ import (
 	"github.com/dylanbr0wn/shiet/internal/integration/google"
 	"github.com/dylanbr0wn/shiet/internal/integration/slack"
 	"github.com/dylanbr0wn/shiet/internal/service"
+	"github.com/rs/zerolog"
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
@@ -20,6 +21,7 @@ import (
 type App struct {
 	ctx      context.Context
 	conn     *sql.DB
+	log      zerolog.Logger
 	Svc      *service.Service
 	google   *google.Provider
 	github   *github.Provider
@@ -49,11 +51,12 @@ func (a *App) GetGoogleAuthStatus() GoogleAuthStatus {
 // NewApp creates a new App over an already-open database connection. The
 // connection is opened, migrated, and seeded in main before binding, so Svc is
 // live at bind time (Wails reflects bound instances up front).
-func NewApp(conn *sql.DB, cfg config.Config) *App {
+func NewApp(conn *sql.DB, cfg config.Config, logger zerolog.Logger) *App {
 	svc := service.New(conn)
 	googleProvider, githubProvider, slackProvider, registry := wireIntegrations(conn, svc, cfg)
 	return &App{
 		conn:     conn,
+		log:      logger,
 		Svc:      svc,
 		google:   googleProvider,
 		github:   githubProvider,
@@ -65,10 +68,12 @@ func NewApp(conn *sql.DB, cfg config.Config) *App {
 // startup is called when the app starts; saves the context for runtime calls.
 func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
+	a.log.Info().Str("op", "app.startup").Msg("startup success")
 }
 
 // shutdown is called on app exit; close the database cleanly.
 func (a *App) shutdown(ctx context.Context) {
+	a.log.Info().Str("op", "app.shutdown").Msg("shutdown")
 	if a.conn != nil {
 		_ = a.conn.Close()
 	}
@@ -76,17 +81,27 @@ func (a *App) shutdown(ctx context.Context) {
 
 // ConnectGoogle runs desktop OAuth for a Google Calendar account.
 func (a *App) ConnectGoogle(accountID, accountLabel string) (connection.Connection, error) {
-	return a.google.Connect(a.callContext(), accountID, accountLabel)
+	conn, err := a.google.Connect(a.callContext(), accountID, accountLabel)
+	if err != nil {
+		return conn, a.logErr("google.connect", err)
+	}
+	a.log.Info().Str("op", "google.connect").Str("account_id", accountID).Msg("connected")
+	return conn, nil
 }
 
 // DisconnectGoogle removes a Google Calendar connection and its tokens.
 func (a *App) DisconnectGoogle(accountID string) error {
-	return a.google.Disconnect(a.callContext(), accountID)
+	return a.logErr("google.disconnect", a.google.Disconnect(a.callContext(), accountID))
 }
 
 // ConnectGitHub connects a GitHub account using a personal access token.
 func (a *App) ConnectGitHub(pat string) (connection.Connection, error) {
-	return a.github.Connect(a.callContext(), pat)
+	conn, err := a.github.Connect(a.callContext(), pat)
+	if err != nil {
+		return conn, a.logErr("github.connect", err)
+	}
+	a.log.Info().Str("op", "github.connect").Str("account_id", conn.AccountID).Msg("connected")
+	return conn, nil
 }
 
 // GitHubAuthMode returns the configured connect mode so the UI can present
@@ -103,12 +118,17 @@ func (a *App) GitHubOAuthAvailable() bool {
 
 // DisconnectGitHub removes a GitHub connection, tokens, and synced repos.
 func (a *App) DisconnectGitHub(accountID string) error {
-	return a.github.Disconnect(a.callContext(), accountID)
+	return a.logErr("github.disconnect", a.github.Disconnect(a.callContext(), accountID))
 }
 
 // ConnectSlack runs desktop OAuth for a Slack workspace.
 func (a *App) ConnectSlack() (connection.Connection, error) {
-	return a.slack.Connect(a.callContext())
+	conn, err := a.slack.Connect(a.callContext())
+	if err != nil {
+		return conn, a.logErr("slack.connect", err)
+	}
+	a.log.Info().Str("op", "slack.connect").Str("account_id", conn.AccountID).Msg("connected")
+	return conn, nil
 }
 
 // SlackAuthMode returns the configured connect mode for Slack OAuth.
@@ -123,7 +143,7 @@ func (a *App) SlackOAuthAvailable() bool {
 
 // DisconnectSlack removes a Slack connection, tokens, and synced channels.
 func (a *App) DisconnectSlack(accountID string) error {
-	return a.slack.Disconnect(a.callContext(), accountID)
+	return a.logErr("slack.disconnect", a.slack.Disconnect(a.callContext(), accountID))
 }
 
 // AIClassification is the privacy verdict for an endpoint URL.
@@ -145,27 +165,29 @@ func (a *App) ClassifyAIEndpoint(baseURL string) AIClassification {
 
 // ListAIModels returns model ids from an OpenAI-compatible endpoint.
 func (a *App) ListAIModels(baseURL string, apiKey string) ([]string, error) {
-	return a.Svc.ListAIModels(a.callContext(), baseURL, apiKey)
+	models, err := a.Svc.ListAIModels(a.callContext(), baseURL, apiKey)
+	return models, a.logErr("ai.list_models", err)
 }
 
 // ValidateAIConfig checks endpoint connectivity and returns the privacy verdict.
 func (a *App) ValidateAIConfig(baseURL string, apiKey string, model string) (ai.ValidationResult, error) {
-	return a.Svc.ValidateAIConfig(a.callContext(), baseURL, apiKey, model)
+	result, err := a.Svc.ValidateAIConfig(a.callContext(), baseURL, apiKey, model)
+	return result, a.logErr("ai.validate_config", err)
 }
 
 // SaveAIEndpoint persists the selected OpenAI-compatible base URL.
 func (a *App) SaveAIEndpoint(baseURL string) error {
-	return a.Svc.SaveAIEndpoint(a.callContext(), baseURL)
+	return a.logErr("ai.save_endpoint", a.Svc.SaveAIEndpoint(a.callContext(), baseURL))
 }
 
 // SaveAIModel persists the selected model name.
 func (a *App) SaveAIModel(model string) error {
-	return a.Svc.SaveAIModel(a.callContext(), model)
+	return a.logErr("ai.save_model", a.Svc.SaveAIModel(a.callContext(), model))
 }
 
 // SaveAIConfig persists the selected endpoint and model.
 func (a *App) SaveAIConfig(baseURL string, model string) error {
-	return a.Svc.SaveAIConfig(a.callContext(), baseURL, model)
+	return a.logErr("ai.save_config", a.Svc.SaveAIConfig(a.callContext(), baseURL, model))
 }
 
 // SaveExportFile writes content to a user-selected path via the native save dialog.
@@ -180,15 +202,36 @@ func (a *App) SaveExportFile(defaultFilename, content string) (string, error) {
 		},
 	})
 	if err != nil {
-		return "", err
+		return "", a.logErr("export.save_file", err)
 	}
 	if path == "" {
 		return "", nil
 	}
 	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
-		return "", fmt.Errorf("write export file: %w", err)
+		return "", a.logErr("export.save_file", fmt.Errorf("write export file: %w", err))
 	}
 	return path, nil
+}
+
+// logErr logs a non-nil error at the Go→frontend boundary, then returns it unchanged.
+func (a *App) logErr(op string, err error) error {
+	if err != nil {
+		a.log.Error().Err(err).Str("op", op).Msg("operation failed")
+	}
+	return err
+}
+
+// wrapSyncPeriod logs calendar sync start/fail around the service SyncPeriod call.
+func wrapSyncPeriod(logger zerolog.Logger, sync func(context.Context, int64) (service.SyncResult, error)) func(context.Context, int64) (service.SyncResult, error) {
+	return func(ctx context.Context, periodID int64) (service.SyncResult, error) {
+		logger.Info().Str("op", "calendar.sync_period").Int64("period_id", periodID).Msg("sync started")
+		result, err := sync(ctx, periodID)
+		if err != nil {
+			logger.Error().Err(err).Str("op", "calendar.sync_period").Int64("period_id", periodID).Msg("operation failed")
+			return result, err
+		}
+		return result, nil
+	}
 }
 
 func (a *App) callContext() context.Context {

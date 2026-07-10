@@ -52,7 +52,7 @@ func main() {
 	}
 
 	// Create an instance of the app structure
-	app := NewApp(conn, cfg)
+	app := NewApp(conn, cfg, logger)
 
 	// Create application with options
 	err = wails.Run(&options.App{
@@ -65,7 +65,7 @@ func main() {
 			Assets: assets,
 			Handler: http.StripPrefix("/rpc", appapi.NewHandler(appapi.Dependencies{
 				Service:         app.Svc,
-				SyncPeriod:      app.Svc.SyncPeriod,
+				SyncPeriod:      wrapSyncPeriod(logger, app.Svc.SyncPeriod),
 				ListConnections: app.registry.List,
 				RefreshGitHubRepos: func(ctx context.Context, accountID string) error {
 					_, err := app.github.SyncRepos(ctx, accountID)
