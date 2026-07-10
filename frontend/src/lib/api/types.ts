@@ -141,24 +141,29 @@ export interface ManualEventResult {
   id: number;
 }
 
-export interface ReviewItem {
-  id: number;
-  periodId: number;
-  kind: string;
-  eventId?: number;
-  payload: string;
-  status: string;
-  conflictKey?: string;
-  decisionAction?: string;
-  decisionPayload?: string;
+export interface ReviewDecisionAction {
+  key: string;
+  label: string;
+  role: "primary" | "secondary";
+  variant?: "default" | "outline" | "destructive";
 }
 
-export interface ResolveReviewItemInput {
-  reviewItemId: number;
+export interface ReviewDecision {
+  id: number;
+  kind: string;
+  eventId?: number;
+  tag: string;
+  title: string;
+  description: string;
+  actions: ReviewDecisionAction[];
+}
+
+export interface ResolveReviewDecisionInput {
+  decisionId: number;
   action: string;
 }
 
-export interface ResolveReviewItemResult {
+export interface ResolveReviewDecisionResult {
   periodId: number;
 }
 

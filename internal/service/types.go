@@ -120,6 +120,25 @@ type ReviewItem struct {
 	DecisionPayload string `json:"decisionPayload,omitempty"`
 }
 
+// ReviewDecisionAction is one allowed user choice for a review decision.
+type ReviewDecisionAction struct {
+	Key     string `json:"key"`
+	Label   string `json:"label"`
+	Role    string `json:"role"`
+	Variant string `json:"variant,omitempty"`
+}
+
+// ReviewDecision is the frontend-facing review read model.
+type ReviewDecision struct {
+	ID          int64                  `json:"id"`
+	Kind        string                 `json:"kind"`
+	EventID     *int64                 `json:"eventId,omitempty"`
+	Tag         string                 `json:"tag"`
+	Title       string                 `json:"title"`
+	Description string                 `json:"description"`
+	Actions     []ReviewDecisionAction `json:"actions"`
+}
+
 // GapFill is a user entry covering an uncovered interval / manual block.
 type GapFill struct {
 	ID         int64  `json:"id"`

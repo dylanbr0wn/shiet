@@ -110,12 +110,12 @@ export function ListIntegrationConnections() {
   return window['go']['main']['App']['ListIntegrationConnections']();
 }
 
-export function ListOpenReviewItems(arg1) {
-  return window['go']['main']['App']['ListOpenReviewItems'](arg1);
-}
-
 export function ListPeriods() {
   return window['go']['main']['App']['ListPeriods']();
+}
+
+export function ListReviewDecisions(arg1) {
+  return window['go']['main']['App']['ListReviewDecisions'](arg1);
 }
 
 export function ListSelectedCalendars() {
@@ -130,8 +130,8 @@ export function RefreshGitHubRepos(arg1) {
   return window['go']['main']['App']['RefreshGitHubRepos'](arg1);
 }
 
-export function ResolveReviewItem(arg1) {
-  return window['go']['main']['App']['ResolveReviewItem'](arg1);
+export function ResolveReviewDecision(arg1) {
+  return window['go']['main']['App']['ResolveReviewDecision'](arg1);
 }
 
 export function SaveAIConfig(arg1, arg2) {

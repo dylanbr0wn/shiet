@@ -5,7 +5,7 @@ import type {
   GapSuggestion,
   GapFill,
   Period,
-  ReviewItem,
+  ReviewDecision,
   TzSegment,
 } from "@/lib/api";
 import type { SchedulerCreateRequest } from "@/lib/scheduler";
@@ -55,7 +55,7 @@ export interface SchedulePageViewModel {
   activePeriodId: number | undefined;
   categories: Category[];
   events: Event[];
-  reviewItems: ReviewItem[];
+  reviewDecisions: ReviewDecision[];
   days: ScheduleDay[];
   items: ScheduleItem[];
   allDayChipsByDay: Map<string, AllDayChip[]>;
@@ -71,7 +71,7 @@ export interface SchedulePageViewModel {
     events: number;
     gapFills: number;
     categories: number;
-    reviewItems: number;
+    reviewDecisions: number;
   };
   createPending: boolean;
   editingEvent: EditableScheduleEvent | null;
@@ -112,7 +112,7 @@ export interface SchedulePageDataInputs {
   events: Event[];
   gapFills: GapFill[];
   gapTimeline: DayTimeline[];
-  reviewItems: ReviewItem[];
+  reviewDecisions: ReviewDecision[];
   tzSegments: TzSegment[];
 }
 
