@@ -12,6 +12,7 @@ import {
   discoverLocalAIEndpoints,
   ensureCurrentPeriod,
   excludeEvent,
+  getGoogleAuthStatus,
   getSetting,
   listAIModels,
   listCalendars,
@@ -75,6 +76,8 @@ export const shietQueryKeys = {
   selectedCalendars: () =>
     [...shietQueryKeys.calendars(), "selected"] as const,
   connections: () => [...shietQueryKeys.all, "connections"] as const,
+  googleAuthStatus: () =>
+    [...shietQueryKeys.all, "googleAuthStatus"] as const,
   setting: (key: string) => [...shietQueryKeys.all, "settings", key] as const,
   aiDiscovery: () => [...shietQueryKeys.all, "ai", "discovery"] as const,
   aiClassification: (baseURL: string) =>
@@ -546,6 +549,13 @@ export function useIntegrationConnections() {
   return useQuery({
     queryKey: shietQueryKeys.connections(),
     queryFn: listIntegrationConnections,
+  });
+}
+
+export function useGoogleAuthStatus() {
+  return useQuery({
+    queryKey: shietQueryKeys.googleAuthStatus(),
+    queryFn: getGoogleAuthStatus,
   });
 }
 

@@ -52,6 +52,11 @@ export interface IntegrationConnection {
   updatedAt: string;
 }
 
+export interface GoogleAuthStatus {
+  mode: "broker" | "local" | string;
+  brokerBaseUrl: string;
+}
+
 export interface SyncResult {
   added: number;
   updated: number;

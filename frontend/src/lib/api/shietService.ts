@@ -13,6 +13,7 @@ import type {
   ExcludeEventResult,
   GapFill,
   GapSuggestion,
+  GoogleAuthStatus,
   IntegrationConnection,
   ManualEventDeleteInput,
   ManualEventInput,
@@ -41,6 +42,7 @@ interface ShietApp {
   DiscoverLocalAIEndpoints(): Promise<AIEndpoint[]>;
   EnsureCurrentPeriod(today: string, ianaTz: string): Promise<Period>;
   ExcludeEvent(input: ExcludeEventInput): Promise<ExcludeEventResult>;
+  GetGoogleAuthStatus(): Promise<GoogleAuthStatus>;
   GetSetting(key: string): Promise<string>;
   ListAIModels(baseURL: string, apiKey: string): Promise<string[]>;
   ListCalendars(): Promise<Calendar[]>;
@@ -301,6 +303,13 @@ export function saveExportFile(defaultFilename: string, content: string) {
 export function listIntegrationConnections() {
   return readFromBackend<IntegrationConnection[]>([], () =>
     appBackend.ListIntegrationConnections(),
+  );
+}
+
+export function getGoogleAuthStatus() {
+  return readFromBackend<GoogleAuthStatus>(
+    { mode: "broker", brokerBaseUrl: "" },
+    () => appBackend.GetGoogleAuthStatus(),
   );
 }
 
