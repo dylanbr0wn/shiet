@@ -10,6 +10,8 @@ import (
 	"github.com/dylanbr0wn/shiet/internal/broker/codes"
 )
 
+// Smoke: slog RedactAttrs still delegates to shared internal/log rules.
+// Primary redaction coverage lives in internal/log.
 func TestRedactAttrsScrubsTokensAndSecrets(t *testing.T) {
 	attrs := []slog.Attr{
 		slog.String("event", "refresh_failed"),

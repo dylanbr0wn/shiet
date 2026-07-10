@@ -12,6 +12,8 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+
+	applog "github.com/dylanbr0wn/shiet/internal/log"
 )
 
 // Metrics holds Prometheus-style counters for broker abuse signals.
@@ -214,50 +216,23 @@ func (m *Metrics) Handler() http.HandlerFunc {
 	}
 }
 
-// sensitiveAttrNames are never logged with their values.
-var sensitiveAttrNames = map[string]struct{}{
-	"access_token":            {},
-	"refresh_token":           {},
-	"client_secret":           {},
-	"handoff_code":            {},
-	"authorization":           {},
-	"authorization_code":      {},
-	"code":                    {},
-	"token":                   {},
-	"pkce_verifier":           {},
-	"handoff_verifier":        {},
-	"encrypted_token_payload": {},
-}
-
 // RedactAttrs drops or replaces attributes that may contain secrets/tokens.
+// Rules live in internal/log (ADR-0001); this keeps the slog broker path
+// until DYL-120 migrates the broker to zerolog.
 func RedactAttrs(attrs []slog.Attr) []slog.Attr {
 	out := make([]slog.Attr, 0, len(attrs))
 	for _, attr := range attrs {
-		key := strings.ToLower(attr.Key)
-		if _, sensitive := sensitiveAttrNames[key]; sensitive {
-			out = append(out, slog.String(attr.Key, "[redacted]"))
+		if applog.SensitiveKey(attr.Key) {
+			out = append(out, slog.String(attr.Key, applog.Redacted))
 			continue
 		}
-		if strings.HasSuffix(key, "_token") || strings.HasSuffix(key, "_secret") {
-			out = append(out, slog.String(attr.Key, "[redacted]"))
-			continue
-		}
-		if attr.Value.Kind() == slog.KindString && looksLikeSecret(attr.Value.String()) {
-			out = append(out, slog.String(attr.Key, "[redacted]"))
+		if attr.Value.Kind() == slog.KindString && applog.LooksLikeSecret(attr.Value.String()) {
+			out = append(out, slog.String(attr.Key, applog.Redacted))
 			continue
 		}
 		out = append(out, attr)
 	}
 	return out
-}
-
-func looksLikeSecret(v string) bool {
-	v = strings.TrimSpace(v)
-	if len(v) < 20 {
-		return false
-	}
-	lower := strings.ToLower(v)
-	return strings.HasPrefix(lower, "ya29.") || strings.HasPrefix(lower, "1//")
 }
 
 // RedactingHandler wraps a slog.Handler and redacts sensitive attrs.
