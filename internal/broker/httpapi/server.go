@@ -675,9 +675,9 @@ func (s Server) revokeSlackOAuth(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := s.revokeSlackToken(r.Context(), req.AccessToken); err != nil {
-		s.Metrics.IncRevokeOutcome(codes.OutcomeGitHubFailed)
-		s.logInfo(codes.EventRevoke, "provider", oauth.ProviderSlack, "outcome", codes.OutcomeGitHubFailed, "reason", req.Reason, "ip_bucket", ipBucket)
-		writeJSON(w, http.StatusBadGateway, errorResponse{Error: codes.GitHubRevokeFailed})
+		s.Metrics.IncRevokeOutcome(codes.OutcomeSlackFailed)
+		s.logInfo(codes.EventRevoke, "provider", oauth.ProviderSlack, "outcome", codes.OutcomeSlackFailed, "reason", req.Reason, "ip_bucket", ipBucket)
+		writeJSON(w, http.StatusBadGateway, errorResponse{Error: codes.SlackRevokeFailed})
 		return
 	}
 	s.Metrics.IncRevokeOK()
