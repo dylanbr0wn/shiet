@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/dylanbr0wn/shiet/internal/ai"
 	"github.com/dylanbr0wn/shiet/internal/config"
@@ -22,6 +23,7 @@ type App struct {
 	ctx      context.Context
 	conn     *sql.DB
 	log      zerolog.Logger
+	logPath  string
 	Svc      *service.Service
 	google   *google.Provider
 	github   *github.Provider
@@ -57,12 +59,41 @@ func NewApp(conn *sql.DB, cfg config.Config, logger zerolog.Logger) *App {
 	return &App{
 		conn:     conn,
 		log:      logger,
+		logPath:  cfg.Log.Path,
 		Svc:      svc,
 		google:   googleProvider,
 		github:   githubProvider,
 		slack:    slackProvider,
 		registry: registry,
 	}
+}
+
+// LogPath returns the configured log file path (log.path / default).
+func (a *App) LogPath() string {
+	if a == nil {
+		return ""
+	}
+	return a.logPath
+}
+
+// RevealLogFolder opens the directory containing the log file in the OS file
+// manager. Creates the directory if needed so reveal works before the first write.
+func (a *App) RevealLogFolder() error {
+	if a == nil {
+		return fmt.Errorf("log path is not configured")
+	}
+	if a.logPath == "" {
+		return a.logErr("log.reveal_folder", fmt.Errorf("log path is not configured"))
+	}
+	dir := filepath.Dir(a.logPath)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return a.logErr("log.reveal_folder", fmt.Errorf("create log directory: %w", err))
+	}
+	if err := openFolderFn(dir); err != nil {
+		return a.logErr("log.reveal_folder", err)
+	}
+	a.log.Info().Str("op", "log.reveal_folder").Str("dir", dir).Msg("opened log folder")
+	return nil
 }
 
 // startup is called when the app starts; saves the context for runtime calls.

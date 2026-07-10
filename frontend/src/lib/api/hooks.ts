@@ -17,6 +17,7 @@ import {
   ensureCurrentPeriod,
   excludeEvent,
   getGoogleAuthStatus,
+  getLogPath,
   getSetting,
   githubAuthMode,
   githubOAuthAvailable,
@@ -44,6 +45,7 @@ import {
   refreshGitHubRepos,
   refreshSlackChannels,
   resolveReviewDecision,
+  revealLogFolder,
   saveAIConfig,
   saveAIEndpoint,
   saveAIModel,
@@ -99,6 +101,7 @@ export const shietQueryKeys = {
   connections: () => [...shietQueryKeys.all, "connections"] as const,
   googleAuthStatus: () =>
     [...shietQueryKeys.all, "googleAuthStatus"] as const,
+  logPath: () => [...shietQueryKeys.all, "logPath"] as const,
   githubRepos: () => [...shietQueryKeys.all, "githubRepos"] as const,
   githubAuthMode: () => [...shietQueryKeys.all, "githubAuthMode"] as const,
   githubOAuthAvailable: () =>
@@ -672,6 +675,19 @@ export function useGoogleAuthStatus() {
   return useQuery({
     queryKey: shietQueryKeys.googleAuthStatus(),
     queryFn: getGoogleAuthStatus,
+  });
+}
+
+export function useLogPath() {
+  return useQuery({
+    queryKey: shietQueryKeys.logPath(),
+    queryFn: getLogPath,
+  });
+}
+
+export function useRevealLogFolder() {
+  return useMutation({
+    mutationFn: revealLogFolder,
   });
 }
 
