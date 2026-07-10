@@ -4,12 +4,14 @@ import (
 	"context"
 	"embed"
 	"log"
+	"net/http"
 
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/options"
 	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
 	"github.com/wailsapp/wails/v2/pkg/options/mac"
 
+	"github.com/dylanbr0wn/shiet/internal/api/appapi"
 	"github.com/dylanbr0wn/shiet/internal/config"
 	"github.com/dylanbr0wn/shiet/internal/db"
 	"github.com/dylanbr0wn/shiet/internal/seed"
@@ -48,7 +50,8 @@ func main() {
 		MinWidth:  1024,
 		MinHeight: 680,
 		AssetServer: &assetserver.Options{
-			Assets: assets,
+			Assets:  assets,
+			Handler: http.StripPrefix("/rpc", appapi.NewHandler(app.Svc)),
 		},
 		Frameless:        false,
 		BackgroundColour: &options.RGBA{R: 0, G: 0, B: 0, A: 0},

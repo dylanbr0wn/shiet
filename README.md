@@ -11,7 +11,7 @@ see [ADR-0001](docs/adr/0001-secret-only-google-oauth-broker.md) and
 
 ## Development
 
-Prerequisites: Go 1.26+, [pnpm](https://pnpm.io/), [Wails CLI](https://wails.io/docs/gettingstarted/installation).
+Prerequisites: Go 1.26+, [pnpm](https://pnpm.io/), [Wails CLI](https://wails.io/docs/gettingstarted/installation), and [Buf](https://buf.build/docs/cli/installation/).
 
 ```bash
 pnpm -C frontend install
@@ -30,6 +30,13 @@ Frontend only (no Go / Wails):
 
 ```bash
 pnpm --dir frontend dev
+```
+
+Regenerate the shared Connect/Protobuf APIs after editing `proto/`:
+
+```bash
+buf lint
+buf generate
 ```
 
 ## Building

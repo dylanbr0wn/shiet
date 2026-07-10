@@ -29,6 +29,7 @@ import type {
   TzSegment,
   UpdateCategoryInput,
 } from "./types";
+import { ensureCurrentPeriodRPC, listPeriodsRPC } from "./periodRpc";
 
 interface ShietApp {
   ClassifyAIEndpoint(baseURL: string): Promise<AIClassification>;
@@ -111,6 +112,16 @@ async function readFromBackend<T>(fallback: T, read: () => Promise<T>) {
   return read();
 }
 
+async function readFromPeriodBackend<T>(fallback: T, read: () => Promise<T>) {
+  if (
+    !isShietAppAvailable() &&
+    !import.meta.env.VITE_SHIET_RPC_BASE_URL?.trim()
+  ) {
+    return fallback;
+  }
+  return read();
+}
+
 async function writeToBackend<T>(write: () => Promise<T>) {
   if (!isShietAppAvailable()) {
     throw new Error("shiet backend is unavailable");
@@ -120,12 +131,12 @@ async function writeToBackend<T>(write: () => Promise<T>) {
 }
 
 export function listPeriods() {
-  return readFromBackend<Period[]>([], () => appBackend.ListPeriods());
+  return readFromPeriodBackend<Period[]>([], listPeriodsRPC);
 }
 
 export function ensureCurrentPeriod(today: string, ianaTz: string) {
-  return readFromBackend<Period | null>(null, () =>
-    appBackend.EnsureCurrentPeriod(today, ianaTz),
+  return readFromPeriodBackend<Period | null>(null, () =>
+    ensureCurrentPeriodRPC(today, ianaTz),
   );
 }
 

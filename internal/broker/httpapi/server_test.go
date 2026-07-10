@@ -18,6 +18,42 @@ import (
 	"github.com/dylanbr0wn/shiet/internal/broker/store"
 )
 
+// These DTOs intentionally model the already-released desktop REST client.
+// Keeping them test-local verifies that the generated-schema REST adapter does
+// not change the legacy JSON contract.
+type startResponse struct {
+	AuthURL     string    `json:"auth_url"`
+	BrokerState string    `json:"broker_state"`
+	ExpiresAt   time.Time `json:"expires_at"`
+}
+
+type handoffResponse struct {
+	Provider    string   `json:"provider"`
+	AccountHint string   `json:"account_hint"`
+	Scope       []string `json:"scope"`
+	Token       struct {
+		AccessToken  string    `json:"access_token"`
+		RefreshToken string    `json:"refresh_token,omitempty"`
+		TokenType    string    `json:"token_type"`
+		Expiry       time.Time `json:"expiry"`
+	} `json:"token"`
+}
+
+type refreshResponse struct {
+	AccessToken  string    `json:"access_token"`
+	RefreshToken string    `json:"refresh_token,omitempty"`
+	TokenType    string    `json:"token_type"`
+	Expiry       time.Time `json:"expiry"`
+}
+
+type revokeResponse struct {
+	Revoked bool `json:"revoked"`
+}
+
+type errorResponse struct {
+	Error string `json:"error"`
+}
+
 func TestHealthAndReady(t *testing.T) {
 	srv := Server{
 		Config: testConfig(),

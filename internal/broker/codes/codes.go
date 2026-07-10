@@ -33,6 +33,7 @@ const (
 	AuthDisabled                              = "auth_disabled"
 	RefreshDisabled                           = "refresh_disabled"
 	AppVersionDisabled                        = "app_version_disabled"
+	OperationNotSupported                     = "operation_not_supported"
 )
 
 // Surfaces used for rate-limit keys, kill-switch metrics, and log fields.

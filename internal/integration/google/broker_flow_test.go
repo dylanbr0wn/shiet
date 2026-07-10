@@ -12,6 +12,8 @@ import (
 	"time"
 
 	"github.com/dylanbr0wn/shiet/internal/broker/codes"
+	brokerconfig "github.com/dylanbr0wn/shiet/internal/broker/config"
+	"github.com/dylanbr0wn/shiet/internal/broker/httpapi"
 	"github.com/dylanbr0wn/shiet/internal/integration/google"
 )
 
@@ -179,7 +181,7 @@ func TestBrokerFlowAuthorizeHandoffFailures(t *testing.T) {
 }
 
 func TestBrokerFlowAuthorizeStartUnavailable(t *testing.T) {
-	broker := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	broker := httptest.NewServer(legacyBroker(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusServiceUnavailable)
 		_ = json.NewEncoder(w).Encode(map[string]string{"error": codes.DatastoreUnavailable})
 	}))
@@ -241,7 +243,7 @@ func TestBrokerFlowRefreshTokenSuccess(t *testing.T) {
 }
 
 func TestBrokerFlowRefreshTokenRotatedRefresh(t *testing.T) {
-	broker := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	broker := httptest.NewServer(legacyBroker(func(w http.ResponseWriter, r *http.Request) {
 		_ = json.NewEncoder(w).Encode(map[string]any{
 			"access_token":  "access-fresh",
 			"refresh_token": "refresh-new",
@@ -262,7 +264,7 @@ func TestBrokerFlowRefreshTokenRotatedRefresh(t *testing.T) {
 }
 
 func TestBrokerFlowRefreshTokenInvalid(t *testing.T) {
-	broker := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	broker := httptest.NewServer(legacyBroker(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusBadRequest)
 		_ = json.NewEncoder(w).Encode(map[string]string{"error": codes.InvalidRefreshToken})
 	}))
@@ -288,7 +290,7 @@ func TestBrokerFlowRefreshKillSwitchAndRateLimit(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			broker := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			broker := httptest.NewServer(legacyBroker(func(w http.ResponseWriter, r *http.Request) {
 				w.WriteHeader(tc.status)
 				_ = json.NewEncoder(w).Encode(map[string]string{"error": tc.code})
 			}))
@@ -307,7 +309,7 @@ func TestBrokerFlowRefreshKillSwitchAndRateLimit(t *testing.T) {
 }
 
 func TestBrokerFlowRefreshTokenUnavailable(t *testing.T) {
-	broker := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	broker := httptest.NewServer(legacyBroker(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusServiceUnavailable)
 		_ = json.NewEncoder(w).Encode(map[string]string{"error": codes.DatastoreUnavailable})
 	}))
@@ -318,6 +320,16 @@ func TestBrokerFlowRefreshTokenUnavailable(t *testing.T) {
 	if !errors.Is(err, google.ErrBrokerUnavailable) {
 		t.Fatalf("want ErrBrokerUnavailable, got %v", err)
 	}
+}
+
+func legacyBroker(handler http.HandlerFunc) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasPrefix(r.URL.Path, "/shiet.broker.v1.OAuthBrokerService/") {
+			http.NotFound(w, r)
+			return
+		}
+		handler(w, r)
+	})
 }
 
 func TestBrokerFlowRevokeSuccess(t *testing.T) {
@@ -349,8 +361,52 @@ func TestBrokerFlowRevokeSuccess(t *testing.T) {
 	}
 }
 
+func TestBrokerFlowRefreshAndRevokeThroughConnect(t *testing.T) {
+	t.Parallel()
+
+	provider := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/token":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"access_token": "connect-access",
+				"token_type":   "Bearer",
+				"expires_in":   3600,
+			})
+		case "/revoke":
+			w.WriteHeader(http.StatusOK)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(provider.Close)
+
+	brokerServer := httpapi.Server{
+		Config: brokerconfig.Config{
+			GoogleClientID:     "google-client-id",
+			GoogleClientSecret: "google-client-secret",
+		},
+		HTTPClient:      provider.Client(),
+		GoogleTokenURL:  provider.URL + "/token",
+		GoogleRevokeURL: provider.URL + "/revoke",
+	}
+	broker := httptest.NewServer(brokerServer.Handler())
+	t.Cleanup(broker.Close)
+
+	flow := &google.BrokerFlow{BaseURL: broker.URL, HTTPClient: broker.Client(), AppVersion: "1.2.3", Platform: "test"}
+	token, err := flow.RefreshToken(context.Background(), "connect-refresh", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if token.AccessToken != "connect-access" || token.RefreshToken != "connect-refresh" {
+		t.Fatalf("token = %+v", token)
+	}
+	if err := flow.Revoke(context.Background(), "connect-refresh"); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestBrokerFlowRevokeUnavailable(t *testing.T) {
-	broker := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	broker := httptest.NewServer(legacyBroker(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusBadGateway)
 		_ = json.NewEncoder(w).Encode(map[string]string{"error": codes.GoogleRevokeFailed})
 	}))

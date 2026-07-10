@@ -5,7 +5,6 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -17,9 +16,13 @@ import (
 	"sync"
 	"time"
 
+	"connectrpc.com/connect"
+	brokerv1 "github.com/dylanbr0wn/shiet/gen/shiet/broker/v1"
+	"github.com/dylanbr0wn/shiet/gen/shiet/broker/v1/brokerv1connect"
 	"github.com/dylanbr0wn/shiet/internal/broker/codes"
 	"github.com/dylanbr0wn/shiet/internal/integration/secrets"
 	"github.com/pkg/browser"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 const (
@@ -50,28 +53,6 @@ type BrokerFlow struct {
 	OpenURL       BrowserOpener
 	AppVersion    string
 	Platform      string
-}
-
-type brokerStartResponse struct {
-	AuthURL     string    `json:"auth_url"`
-	BrokerState string    `json:"broker_state"`
-	ExpiresAt   time.Time `json:"expires_at"`
-}
-
-type brokerHandoffResponse struct {
-	Provider    string   `json:"provider"`
-	AccountHint string   `json:"account_hint"`
-	Scope       []string `json:"scope"`
-	Token       struct {
-		AccessToken  string    `json:"access_token"`
-		RefreshToken string    `json:"refresh_token"`
-		TokenType    string    `json:"token_type"`
-		Expiry       time.Time `json:"expiry"`
-	} `json:"token"`
-}
-
-type brokerErrorResponse struct {
-	Error string `json:"error"`
 }
 
 type handoffCallback struct {
@@ -160,7 +141,7 @@ func (f *BrokerFlow) Authorize(ctx context.Context, accountID string) (Result, e
 	expectedMu.Lock()
 	expectedState = start.BrokerState
 	expectedMu.Unlock()
-	if err := f.validateAuthURL(start.AuthURL); err != nil {
+	if err := f.validateAuthURL(start.AuthUrl); err != nil {
 		shutdownBrokerServer(srv, &serveWG)
 		return Result{}, fmt.Errorf("%w: %v", ErrBrokerRejected, err)
 	}
@@ -168,7 +149,7 @@ func (f *BrokerFlow) Authorize(ctx context.Context, accountID string) (Result, e
 	if open == nil {
 		open = browser.OpenURL
 	}
-	if err := open(start.AuthURL); err != nil {
+	if err := open(start.AuthUrl); err != nil {
 		shutdownBrokerServer(srv, &serveWG)
 		return Result{}, fmt.Errorf("%w: open browser: %v", ErrBrokerUnavailable, err)
 	}
@@ -191,10 +172,10 @@ func (f *BrokerFlow) Authorize(ctx context.Context, accountID string) (Result, e
 	if err != nil {
 		return Result{}, err
 	}
-	if handoff.Provider != "" && handoff.Provider != provider {
+	if handoff.Provider != brokerv1.Provider_PROVIDER_UNSPECIFIED && handoff.Provider != brokerProvider(provider) {
 		return Result{}, fmt.Errorf("%w: handoff provider mismatch", ErrBrokerRejected)
 	}
-	scopes := handoff.Scope
+	scopes := handoff.Scopes
 	if len(scopes) == 0 {
 		scopes = append([]string(nil), f.DefaultScopes...)
 	}
@@ -205,71 +186,74 @@ func (f *BrokerFlow) Authorize(ctx context.Context, accountID string) (Result, e
 			AccessToken:  handoff.Token.AccessToken,
 			RefreshToken: handoff.Token.RefreshToken,
 			TokenType:    handoff.Token.TokenType,
-			Expiry:       handoff.Token.Expiry,
+			Expiry:       timestampTime(handoff.Token.Expiry),
 		},
 		Scopes: scopes,
 	}, nil
 }
 
-func (f *BrokerFlow) startAuth(ctx context.Context, base, sessionID, challenge, redirectURL string) (brokerStartResponse, error) {
-	body, _ := json.Marshal(map[string]string{
-		"desktop_session_id": sessionID, "handoff_challenge": challenge,
-		"app_version": f.appVersion(), "platform": f.platform(), "desktop_handoff_redirect": redirectURL,
-	})
-	var out brokerStartResponse
-	if err := f.postJSON(ctx, base+"/v1/"+f.Provider+"/oauth/start", body, &out, "start"); err != nil {
-		return brokerStartResponse{}, err
+func (f *BrokerFlow) startAuth(ctx context.Context, base, sessionID, challenge, redirectURL string) (*brokerv1.StartAuthorizationResponse, error) {
+	request := &brokerv1.StartAuthorizationRequest{
+		Provider:               brokerProvider(f.Provider),
+		DesktopSessionId:       sessionID,
+		HandoffChallenge:       challenge,
+		DesktopHandoffRedirect: redirectURL,
+		Application:            &brokerv1.ApplicationMetadata{AppVersion: f.appVersion(), Platform: f.platform()},
 	}
-	if out.AuthURL == "" || out.BrokerState == "" {
-		return brokerStartResponse{}, fmt.Errorf("%w: start response missing auth_url or broker_state", ErrBrokerUnavailable)
+	response, err := f.brokerClient(base).StartAuthorization(ctx, connect.NewRequest(request))
+	if ShouldFallbackToLegacy(err) {
+		responseMsg, legacyErr := LegacyStartAuthorization(ctx, f.HTTPClient, base, f.Provider, request)
+		if legacyErr != nil {
+			return nil, mapBrokerRPCError(legacyErr, "start")
+		}
+		return responseMsg, nil
 	}
-	return out, nil
-}
-
-func (f *BrokerFlow) exchangeHandoff(ctx context.Context, base, sessionID, state, code, verifier string) (brokerHandoffResponse, error) {
-	body, _ := json.Marshal(map[string]string{
-		"desktop_session_id": sessionID, "broker_state": state,
-		"handoff_code": code, "handoff_verifier": verifier,
-	})
-	var out brokerHandoffResponse
-	if err := f.postJSON(ctx, base+"/v1/"+f.Provider+"/oauth/handoff", body, &out, "handoff"); err != nil {
-		return brokerHandoffResponse{}, err
-	}
-	if strings.TrimSpace(out.Token.AccessToken) == "" {
-		return brokerHandoffResponse{}, fmt.Errorf("%w: handoff response missing access_token", ErrBrokerUnavailable)
-	}
-	return out, nil
-}
-
-func (f *BrokerFlow) postJSON(ctx context.Context, endpoint string, body []byte, out any, op string) error {
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, strings.NewReader(string(body)))
 	if err != nil {
-		return err
+		return nil, mapBrokerRPCError(err, "start")
 	}
-	req.Header.Set("Content-Type", "application/json")
+	if response.Msg.AuthUrl == "" || response.Msg.BrokerState == "" {
+		return nil, fmt.Errorf("%w: start response missing auth_url or broker_state", ErrBrokerUnavailable)
+	}
+	return response.Msg, nil
+}
+
+func (f *BrokerFlow) exchangeHandoff(ctx context.Context, base, sessionID, state, code, verifier string) (*brokerv1.ExchangeHandoffResponse, error) {
+	request := &brokerv1.ExchangeHandoffRequest{
+		Provider:         brokerProvider(f.Provider),
+		DesktopSessionId: sessionID,
+		BrokerState:      state,
+		HandoffCode:      code,
+		HandoffVerifier:  verifier,
+		Application:      &brokerv1.ApplicationMetadata{AppVersion: f.appVersion(), Platform: f.platform()},
+	}
+	response, err := f.brokerClient(base).ExchangeHandoff(ctx, connect.NewRequest(request))
+	if ShouldFallbackToLegacy(err) {
+		responseMsg, legacyErr := LegacyExchangeHandoff(ctx, f.HTTPClient, base, f.Provider, request)
+		if legacyErr != nil {
+			return nil, mapBrokerRPCError(legacyErr, "handoff")
+		}
+		return responseMsg, nil
+	}
+	if err != nil {
+		return nil, mapBrokerRPCError(err, "handoff")
+	}
+	if response.Msg.Token == nil || strings.TrimSpace(response.Msg.Token.AccessToken) == "" {
+		return nil, fmt.Errorf("%w: handoff response missing access_token", ErrBrokerUnavailable)
+	}
+	return response.Msg, nil
+}
+
+func (f *BrokerFlow) brokerClient(base string) brokerv1connect.OAuthBrokerServiceClient {
 	client := f.HTTPClient
 	if client == nil {
 		client = http.DefaultClient
 	}
-	resp, err := client.Do(req)
-	if err != nil {
-		return fmt.Errorf("%w: contact broker %s: %v", ErrBrokerUnavailable, op, err)
-	}
-	defer resp.Body.Close()
-	raw, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return mapBrokerHTTPError(resp.StatusCode, raw, op)
-	}
-	if err := json.Unmarshal(raw, out); err != nil {
-		return fmt.Errorf("%w: decode %s response", ErrBrokerUnavailable, op)
-	}
-	return nil
+	return brokerv1connect.NewOAuthBrokerServiceClient(client, base)
 }
 
-func mapBrokerHTTPError(status int, raw []byte, op string) error {
-	var er brokerErrorResponse
-	_ = json.Unmarshal(raw, &er)
-	switch strings.TrimSpace(er.Error) {
+func mapBrokerRPCError(err error, op string) error {
+	code := BrokerErrorCode(err)
+	switch code {
 	case codes.HandoffAlreadyUsed:
 		return ErrHandoffReplay
 	case codes.HandoffExpired:
@@ -279,12 +263,74 @@ func mapBrokerHTTPError(status int, raw []byte, op string) error {
 	case codes.HandoffVerifierMismatch:
 		return ErrHandoffVerifier
 	case codes.RateLimited, codes.AuthDisabled, codes.AppVersionDisabled:
-		return fmt.Errorf("%w: %s", ErrBrokerRejected, er.Error)
+		return fmt.Errorf("%w: %s", ErrBrokerRejected, code)
 	}
-	if status >= 500 {
-		return fmt.Errorf("%w: broker %s returned %d", ErrBrokerUnavailable, op, status)
+	var legacyErr *LegacyBrokerError
+	if errors.As(err, &legacyErr) && (legacyErr.Status == 0 || legacyErr.Status >= 500) {
+		return fmt.Errorf("%w: broker %s unavailable", ErrBrokerUnavailable, op)
 	}
-	return fmt.Errorf("%w: broker %s returned %d", ErrBrokerRejected, op, status)
+	if connect.CodeOf(err) == connect.CodeUnavailable || connect.CodeOf(err) == connect.CodeInternal {
+		return fmt.Errorf("%w: broker %s unavailable", ErrBrokerUnavailable, op)
+	}
+	return fmt.Errorf("%w: broker %s rejected request: %s", ErrBrokerRejected, op, code)
+}
+
+func BrokerErrorCode(err error) string {
+	var legacyErr *LegacyBrokerError
+	if errors.As(err, &legacyErr) {
+		return strings.TrimSpace(legacyErr.Code)
+	}
+	var connectErr *connect.Error
+	if !errors.As(err, &connectErr) {
+		return ""
+	}
+	for _, detail := range connectErr.Details() {
+		value, valueErr := detail.Value()
+		if valueErr != nil {
+			continue
+		}
+		if brokerDetail, ok := value.(*brokerv1.BrokerErrorDetail); ok {
+			return strings.TrimSpace(brokerDetail.Code)
+		}
+	}
+	return strings.TrimSpace(connectErr.Message())
+}
+
+func ShouldFallbackToLegacy(err error) bool {
+	if err == nil {
+		return false
+	}
+	var connectErr *connect.Error
+	if !errors.As(err, &connectErr) {
+		return false
+	}
+	if connectErr.Code() != connect.CodeUnimplemented {
+		return false
+	}
+	for _, detail := range connectErr.Details() {
+		value, valueErr := detail.Value()
+		if valueErr != nil {
+			continue
+		}
+		if _, ok := value.(*brokerv1.BrokerErrorDetail); ok {
+			return false
+		}
+	}
+	return true
+}
+
+func brokerProvider(provider string) brokerv1.Provider {
+	if strings.EqualFold(strings.TrimSpace(provider), "github") {
+		return brokerv1.Provider_PROVIDER_GITHUB
+	}
+	return brokerv1.Provider_PROVIDER_GOOGLE
+}
+
+func timestampTime(timestamp *timestamppb.Timestamp) time.Time {
+	if timestamp == nil {
+		return time.Time{}
+	}
+	return timestamp.AsTime()
 }
 
 func (f *BrokerFlow) validateAuthURL(raw string) error {

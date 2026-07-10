@@ -213,6 +213,12 @@ schema guarantees.
 
 ## Current Service Surface
 
+The broker also exposes the generated
+`shiet.broker.v1.OAuthBrokerService` Connect service for start, handoff,
+Google refresh, and provider revoke. Connect, gRPC-Web, and gRPC clients share
+the same operation implementation as the backward-compatible REST routes
+below. Provider callbacks and operational endpoints remain ordinary HTTP.
+
 - `GET /healthz`: process health.
 - `GET /readyz`: validates configuration and checks datastore connectivity.
 - `GET /metrics`: Prometheus text metrics for auth/abuse signals (no secrets).

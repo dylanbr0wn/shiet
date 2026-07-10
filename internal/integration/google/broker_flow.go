@@ -5,7 +5,6 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -17,6 +16,9 @@ import (
 	"sync"
 	"time"
 
+	"connectrpc.com/connect"
+	brokerv1 "github.com/dylanbr0wn/shiet/gen/shiet/broker/v1"
+	"github.com/dylanbr0wn/shiet/gen/shiet/broker/v1/brokerv1connect"
 	"github.com/dylanbr0wn/shiet/internal/broker/codes"
 	"github.com/dylanbr0wn/shiet/internal/config"
 	"github.com/dylanbr0wn/shiet/internal/integration/oauth"
@@ -54,35 +56,6 @@ type BrokerFlow struct {
 	OpenURL    BrowserOpener
 	AppVersion string
 	Platform   string
-}
-
-type brokerStartResponse struct {
-	AuthURL     string    `json:"auth_url"`
-	BrokerState string    `json:"broker_state"`
-	ExpiresAt   time.Time `json:"expires_at"`
-}
-
-type brokerHandoffResponse struct {
-	Provider    string   `json:"provider"`
-	AccountHint string   `json:"account_hint"`
-	Scope       []string `json:"scope"`
-	Token       struct {
-		AccessToken  string    `json:"access_token"`
-		RefreshToken string    `json:"refresh_token"`
-		TokenType    string    `json:"token_type"`
-		Expiry       time.Time `json:"expiry"`
-	} `json:"token"`
-}
-
-type brokerRefreshResponse struct {
-	AccessToken  string    `json:"access_token"`
-	RefreshToken string    `json:"refresh_token,omitempty"`
-	TokenType    string    `json:"token_type"`
-	Expiry       time.Time `json:"expiry"`
-}
-
-type brokerErrorResponse struct {
-	Error string `json:"error"`
 }
 
 type handoffCallback struct {
@@ -173,11 +146,11 @@ func (f *BrokerFlow) Authorize(ctx context.Context, accountID string) (oauth.Res
 	if open == nil {
 		open = browser.OpenURL
 	}
-	if err := validateGoogleAuthURL(start.AuthURL); err != nil {
+	if err := validateGoogleAuthURL(start.AuthUrl); err != nil {
 		shutdownBrokerServer(srv, &serveWG)
 		return oauth.Result{}, fmt.Errorf("%w: %v", ErrBrokerRejected, err)
 	}
-	if err := open(start.AuthURL); err != nil {
+	if err := open(start.AuthUrl); err != nil {
 		shutdownBrokerServer(srv, &serveWG)
 		return oauth.Result{}, fmt.Errorf("%w: open browser: %v", ErrBrokerUnavailable, err)
 	}
@@ -206,13 +179,16 @@ func (f *BrokerFlow) Authorize(ctx context.Context, accountID string) (oauth.Res
 		return oauth.Result{}, err
 	}
 
+	if handoff.Provider != brokerv1.Provider_PROVIDER_GOOGLE || handoff.Token == nil {
+		return oauth.Result{}, fmt.Errorf("%w: handoff provider mismatch", ErrBrokerRejected)
+	}
 	token := secrets.Token{
 		AccessToken:  handoff.Token.AccessToken,
 		RefreshToken: handoff.Token.RefreshToken,
 		TokenType:    handoff.Token.TokenType,
-		Expiry:       handoff.Token.Expiry,
+		Expiry:       handoff.Token.Expiry.AsTime(),
 	}
-	scopes := handoff.Scope
+	scopes := handoff.Scopes
 	if len(scopes) == 0 {
 		scopes = []string{scopeCalendarRead}
 	}
@@ -224,77 +200,55 @@ func (f *BrokerFlow) Authorize(ctx context.Context, accountID string) (oauth.Res
 	}, nil
 }
 
-func (f *BrokerFlow) startAuth(ctx context.Context, base, sessionID, challenge, redirectURL string) (brokerStartResponse, error) {
-	payload := map[string]string{
-		"desktop_session_id":       sessionID,
-		"handoff_challenge":        challenge,
-		"app_version":              f.appVersion(),
-		"platform":                 f.platform(),
-		"desktop_handoff_redirect": redirectURL,
+func (f *BrokerFlow) startAuth(ctx context.Context, base, sessionID, challenge, redirectURL string) (*brokerv1.StartAuthorizationResponse, error) {
+	request := &brokerv1.StartAuthorizationRequest{
+		Provider:               brokerv1.Provider_PROVIDER_GOOGLE,
+		DesktopSessionId:       sessionID,
+		HandoffChallenge:       challenge,
+		DesktopHandoffRedirect: redirectURL,
+		Application:            &brokerv1.ApplicationMetadata{AppVersion: f.appVersion(), Platform: f.platform()},
 	}
-	body, err := json.Marshal(payload)
+	response, err := f.brokerClient(base).StartAuthorization(ctx, connect.NewRequest(request))
+	if oauth.ShouldFallbackToLegacy(err) {
+		responseMsg, legacyErr := oauth.LegacyStartAuthorization(ctx, f.HTTPClient, base, service.ProviderGoogle, request)
+		if legacyErr != nil {
+			return nil, f.mapBrokerRPCError(legacyErr, "start")
+		}
+		return responseMsg, nil
+	}
 	if err != nil {
-		return brokerStartResponse{}, err
+		return nil, f.mapBrokerRPCError(err, "start")
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, base+"/v1/google/oauth/start", strings.NewReader(string(body)))
-	if err != nil {
-		return brokerStartResponse{}, err
+	if response.Msg.AuthUrl == "" || response.Msg.BrokerState == "" {
+		return nil, fmt.Errorf("%w: start response missing auth_url or broker_state", ErrBrokerUnavailable)
 	}
-	req.Header.Set("Content-Type", "application/json")
-
-	resp, err := f.httpClient().Do(req)
-	if err != nil {
-		return brokerStartResponse{}, fmt.Errorf("%w: contact broker start: %v", ErrBrokerUnavailable, err)
-	}
-	defer resp.Body.Close()
-	raw, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return brokerStartResponse{}, mapBrokerHTTPError(resp.StatusCode, raw, "start")
-	}
-	var out brokerStartResponse
-	if err := json.Unmarshal(raw, &out); err != nil {
-		return brokerStartResponse{}, fmt.Errorf("%w: decode start response", ErrBrokerUnavailable)
-	}
-	if out.AuthURL == "" || out.BrokerState == "" {
-		return brokerStartResponse{}, fmt.Errorf("%w: start response missing auth_url or broker_state", ErrBrokerUnavailable)
-	}
-	return out, nil
+	return response.Msg, nil
 }
 
-func (f *BrokerFlow) exchangeHandoff(ctx context.Context, base, sessionID, brokerState, handoffCode, verifier string) (brokerHandoffResponse, error) {
-	payload := map[string]string{
-		"desktop_session_id": sessionID,
-		"broker_state":       brokerState,
-		"handoff_code":       handoffCode,
-		"handoff_verifier":   verifier,
+func (f *BrokerFlow) exchangeHandoff(ctx context.Context, base, sessionID, brokerState, handoffCode, verifier string) (*brokerv1.ExchangeHandoffResponse, error) {
+	request := &brokerv1.ExchangeHandoffRequest{
+		Provider:         brokerv1.Provider_PROVIDER_GOOGLE,
+		DesktopSessionId: sessionID,
+		BrokerState:      brokerState,
+		HandoffCode:      handoffCode,
+		HandoffVerifier:  verifier,
+		Application:      &brokerv1.ApplicationMetadata{AppVersion: f.appVersion(), Platform: f.platform()},
 	}
-	body, err := json.Marshal(payload)
+	response, err := f.brokerClient(base).ExchangeHandoff(ctx, connect.NewRequest(request))
+	if oauth.ShouldFallbackToLegacy(err) {
+		responseMsg, legacyErr := oauth.LegacyExchangeHandoff(ctx, f.HTTPClient, base, service.ProviderGoogle, request)
+		if legacyErr != nil {
+			return nil, f.mapBrokerRPCError(legacyErr, "handoff")
+		}
+		return responseMsg, nil
+	}
 	if err != nil {
-		return brokerHandoffResponse{}, err
+		return nil, f.mapBrokerRPCError(err, "handoff")
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, base+"/v1/google/oauth/handoff", strings.NewReader(string(body)))
-	if err != nil {
-		return brokerHandoffResponse{}, err
+	if response.Msg.Token == nil || response.Msg.Token.AccessToken == "" {
+		return nil, fmt.Errorf("%w: handoff response missing access_token", ErrBrokerUnavailable)
 	}
-	req.Header.Set("Content-Type", "application/json")
-
-	resp, err := f.httpClient().Do(req)
-	if err != nil {
-		return brokerHandoffResponse{}, fmt.Errorf("%w: contact broker handoff: %v", ErrBrokerUnavailable, err)
-	}
-	defer resp.Body.Close()
-	raw, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return brokerHandoffResponse{}, mapBrokerHTTPError(resp.StatusCode, raw, "handoff")
-	}
-	var out brokerHandoffResponse
-	if err := json.Unmarshal(raw, &out); err != nil {
-		return brokerHandoffResponse{}, fmt.Errorf("%w: decode handoff response", ErrBrokerUnavailable)
-	}
-	if out.Token.AccessToken == "" {
-		return brokerHandoffResponse{}, fmt.Errorf("%w: handoff response missing access_token", ErrBrokerUnavailable)
-	}
-	return out, nil
+	return response.Msg, nil
 }
 
 // RefreshToken asks the broker to exchange a Google refresh token for new
@@ -310,38 +264,26 @@ func (f *BrokerFlow) RefreshToken(ctx context.Context, refreshToken string, scop
 		return secrets.Token{}, fmt.Errorf("%w: refresh token is empty", ErrInvalidRefreshToken)
 	}
 
-	payload := map[string]any{
-		"refresh_token": refreshToken,
-		"app_version":   f.appVersion(),
-		"platform":      f.platform(),
+	request := &brokerv1.RefreshTokenRequest{
+		Provider:     brokerv1.Provider_PROVIDER_GOOGLE,
+		RefreshToken: refreshToken,
+		Scopes:       append([]string(nil), scopes...),
+		Application:  &brokerv1.ApplicationMetadata{AppVersion: f.appVersion(), Platform: f.platform()},
 	}
-	if len(scopes) > 0 {
-		payload["scope"] = append([]string(nil), scopes...)
+	response, err := f.brokerClient(base).RefreshToken(ctx, connect.NewRequest(request))
+	if oauth.ShouldFallbackToLegacy(err) {
+		responseMsg, legacyErr := oauth.LegacyRefreshToken(ctx, f.HTTPClient, base, request)
+		if legacyErr != nil {
+			return secrets.Token{}, f.mapBrokerRPCError(legacyErr, "refresh")
+		}
+		response = connect.NewResponse(responseMsg)
+		err = nil
 	}
-	body, err := json.Marshal(payload)
 	if err != nil {
-		return secrets.Token{}, err
+		return secrets.Token{}, f.mapBrokerRPCError(err, "refresh")
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, base+"/v1/google/oauth/refresh", strings.NewReader(string(body)))
-	if err != nil {
-		return secrets.Token{}, err
-	}
-	req.Header.Set("Content-Type", "application/json")
-
-	resp, err := f.httpClient().Do(req)
-	if err != nil {
-		return secrets.Token{}, fmt.Errorf("%w: contact broker refresh: %v", ErrBrokerUnavailable, err)
-	}
-	defer resp.Body.Close()
-	raw, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return secrets.Token{}, mapBrokerHTTPError(resp.StatusCode, raw, "refresh")
-	}
-	var out brokerRefreshResponse
-	if err := json.Unmarshal(raw, &out); err != nil {
-		return secrets.Token{}, fmt.Errorf("%w: decode refresh response", ErrBrokerUnavailable)
-	}
-	if strings.TrimSpace(out.AccessToken) == "" {
+	out := response.Msg.Token
+	if out == nil || strings.TrimSpace(out.AccessToken) == "" {
 		return secrets.Token{}, fmt.Errorf("%w: refresh response missing access_token", ErrBrokerUnavailable)
 	}
 	tokenType := strings.TrimSpace(out.TokenType)
@@ -356,12 +298,8 @@ func (f *BrokerFlow) RefreshToken(ctx context.Context, refreshToken string, scop
 		AccessToken:  out.AccessToken,
 		RefreshToken: nextRefresh,
 		TokenType:    tokenType,
-		Expiry:       out.Expiry,
+		Expiry:       out.Expiry.AsTime(),
 	}, nil
-}
-
-type brokerRevokeResponse struct {
-	Revoked bool `json:"revoked"`
 }
 
 // Revoke asks the broker to revoke a Google refresh token. The broker does not
@@ -376,34 +314,24 @@ func (f *BrokerFlow) Revoke(ctx context.Context, refreshToken string) error {
 		return fmt.Errorf("%w: set google.broker_base_url or SHIET_GOOGLE_BROKER_BASE_URL", config.ErrBrokerConfig)
 	}
 
-	payload := map[string]string{
-		"refresh_token": refreshToken,
-		"reason":        "user_disconnect",
+	request := &brokerv1.RevokeTokenRequest{
+		Provider:   brokerv1.Provider_PROVIDER_GOOGLE,
+		Credential: &brokerv1.RevokeTokenRequest_RefreshToken{RefreshToken: refreshToken},
+		Reason:     "user_disconnect",
 	}
-	body, err := json.Marshal(payload)
+	response, err := f.brokerClient(base).RevokeToken(ctx, connect.NewRequest(request))
+	if oauth.ShouldFallbackToLegacy(err) {
+		responseMsg, legacyErr := oauth.LegacyRevokeToken(ctx, f.HTTPClient, base, service.ProviderGoogle, request)
+		if legacyErr != nil {
+			return f.mapBrokerRPCError(legacyErr, "revoke")
+		}
+		response = connect.NewResponse(responseMsg)
+		err = nil
+	}
 	if err != nil {
-		return err
+		return f.mapBrokerRPCError(err, "revoke")
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, base+"/v1/google/oauth/revoke", strings.NewReader(string(body)))
-	if err != nil {
-		return err
-	}
-	req.Header.Set("Content-Type", "application/json")
-
-	resp, err := f.httpClient().Do(req)
-	if err != nil {
-		return fmt.Errorf("%w: contact broker revoke: %v", ErrBrokerUnavailable, err)
-	}
-	defer resp.Body.Close()
-	raw, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return mapBrokerHTTPError(resp.StatusCode, raw, "revoke")
-	}
-	var out brokerRevokeResponse
-	if err := json.Unmarshal(raw, &out); err != nil {
-		return fmt.Errorf("%w: decode revoke response", ErrBrokerUnavailable)
-	}
-	if !out.Revoked {
+	if !response.Msg.Revoked {
 		return fmt.Errorf("%w: revoke response missing revoked=true", ErrBrokerRejected)
 	}
 	return nil
@@ -414,6 +342,10 @@ func (f *BrokerFlow) httpClient() *http.Client {
 		return f.HTTPClient
 	}
 	return http.DefaultClient
+}
+
+func (f *BrokerFlow) brokerClient(base string) brokerv1connect.OAuthBrokerServiceClient {
+	return brokerv1connect.NewOAuthBrokerServiceClient(f.httpClient(), base)
 }
 
 func (f *BrokerFlow) appVersion() string {
@@ -430,10 +362,8 @@ func (f *BrokerFlow) platform() string {
 	return runtime.GOOS + "-" + runtime.GOARCH
 }
 
-func mapBrokerHTTPError(status int, raw []byte, op string) error {
-	var er brokerErrorResponse
-	_ = json.Unmarshal(raw, &er)
-	code := strings.TrimSpace(er.Error)
+func (f *BrokerFlow) mapBrokerRPCError(err error, op string) error {
+	code := oauth.BrokerErrorCode(err)
 	switch code {
 	case codes.HandoffAlreadyUsed:
 		return fmt.Errorf("%w: complete a fresh Google connect", ErrHandoffReplay)
@@ -456,16 +386,20 @@ func mapBrokerHTTPError(status int, raw []byte, op string) error {
 	case codes.AppVersionDisabled:
 		return fmt.Errorf("%w: this app version can no longer use broker auth; update shiet", ErrBrokerRejected)
 	}
-	if status == http.StatusTooManyRequests {
+	if connect.CodeOf(err) == connect.CodeResourceExhausted {
 		return fmt.Errorf("%w: too many requests; try again later", ErrBrokerRejected)
 	}
-	if status >= 500 || status == http.StatusNotImplemented || status == http.StatusServiceUnavailable {
-		return fmt.Errorf("%w: broker %s returned %d", ErrBrokerUnavailable, op, status)
+	var legacyErr *oauth.LegacyBrokerError
+	if errors.As(err, &legacyErr) && (legacyErr.Status == 0 || legacyErr.Status >= 500 || legacyErr.Status == http.StatusNotImplemented) {
+		return fmt.Errorf("%w: broker %s unavailable", ErrBrokerUnavailable, op)
+	}
+	if connect.CodeOf(err) == connect.CodeUnavailable || connect.CodeOf(err) == connect.CodeInternal || connect.CodeOf(err) == connect.CodeUnimplemented {
+		return fmt.Errorf("%w: broker %s unavailable", ErrBrokerUnavailable, op)
 	}
 	if code != "" {
 		return fmt.Errorf("%w: broker %s error %s", ErrBrokerRejected, op, code)
 	}
-	return fmt.Errorf("%w: broker %s returned %d", ErrBrokerRejected, op, status)
+	return fmt.Errorf("%w: broker %s rejected request", ErrBrokerRejected, op)
 }
 
 func listenBrokerHandoff() (net.Listener, string, error) {
