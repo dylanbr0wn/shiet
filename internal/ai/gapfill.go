@@ -17,6 +17,7 @@ func SuggestGapFill(
 	gap GapContext,
 	evidence []EvidencePayload,
 	local bool,
+	maxTokens int,
 ) (categoryKey string, description string, err error) {
 	if len(categories) == 0 {
 		return "", "", fmt.Errorf("no categories configured")
@@ -48,7 +49,7 @@ func SuggestGapFill(
 		string(evidenceJSON),
 	)
 
-	reply, err := client.ChatCompletion(ctx, model, systemPrompt, userPrompt)
+	reply, err := client.ChatCompletion(ctx, model, systemPrompt, userPrompt, maxTokens)
 	if err != nil {
 		return "", "", err
 	}

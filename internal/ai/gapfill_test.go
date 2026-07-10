@@ -49,6 +49,7 @@ func TestSuggestGapFill(t *testing.T) {
 		gap,
 		evidence,
 		true,
+		0,
 	)
 	if err != nil {
 		t.Fatalf("SuggestGapFill: %v", err)
@@ -104,6 +105,7 @@ func TestSuggestGapFillCloudOmitsDetailAndURL(t *testing.T) {
 		ai.GapContext{Duration: "1h0m0s"},
 		evidence,
 		false,
+		0,
 	)
 	if err != nil {
 		t.Fatalf("SuggestGapFill: %v", err)

@@ -33,9 +33,9 @@ export function EnsureCurrentPeriod(arg1:string,arg2:string):Promise<service.Per
 
 export function ExcludeEvent(arg1:service.ExcludeEventInput):Promise<service.ExcludeEventResult>;
 
-export function GetSetting(arg1:string):Promise<string>;
-
 export function GetGoogleAuthStatus():Promise<main.GoogleAuthStatus>;
+
+export function GetSetting(arg1:string):Promise<string>;
 
 export function GitHubAuthMode():Promise<string>;
 

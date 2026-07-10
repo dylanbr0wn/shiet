@@ -58,12 +58,12 @@ export function ExcludeEvent(arg1) {
   return window['go']['main']['App']['ExcludeEvent'](arg1);
 }
 
-export function GetSetting(arg1) {
-  return window['go']['main']['App']['GetSetting'](arg1);
-}
-
 export function GetGoogleAuthStatus() {
   return window['go']['main']['App']['GetGoogleAuthStatus']();
+}
+
+export function GetSetting(arg1) {
+  return window['go']['main']['App']['GetSetting'](arg1);
 }
 
 export function GitHubAuthMode() {
