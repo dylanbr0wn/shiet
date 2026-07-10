@@ -21,9 +21,9 @@ import type {
   ManualEventResult,
   ManualEventUpdateInput,
   Period,
-  ReviewItem,
-  ResolveReviewItemInput,
-  ResolveReviewItemResult,
+  ReviewDecision,
+  ResolveReviewDecisionInput,
+  ResolveReviewDecisionResult,
   SyncResult,
   TimeWindow,
   TzSegment,
@@ -57,10 +57,10 @@ interface ShietApp {
   ListGapFills(periodId: number): Promise<GapFill[]>;
   ListGitHubRepos(): Promise<GitHubRepo[]>;
   ListIntegrationConnections(): Promise<IntegrationConnection[]>;
-  ListOpenReviewItems(periodId: number): Promise<ReviewItem[]>;
-  ResolveReviewItem(
-    input: ResolveReviewItemInput,
-  ): Promise<ResolveReviewItemResult>;
+  ListReviewDecisions(periodId: number): Promise<ReviewDecision[]>;
+  ResolveReviewDecision(
+    input: ResolveReviewDecisionInput,
+  ): Promise<ResolveReviewDecisionResult>;
   ListPeriods(): Promise<Period[]>;
   ListSelectedCalendars(): Promise<Calendar[]>;
   ListTzSegments(periodId: number): Promise<TzSegment[]>;
@@ -199,14 +199,14 @@ export function deleteManualEvent(input: ManualEventDeleteInput) {
   );
 }
 
-export function listOpenReviewItems(periodId: number) {
-  return readFromBackend<ReviewItem[]>([], () =>
-    appBackend.ListOpenReviewItems(periodId),
+export function listReviewDecisions(periodId: number) {
+  return readFromBackend<ReviewDecision[]>([], () =>
+    appBackend.ListReviewDecisions(periodId),
   );
 }
 
-export function resolveReviewItem(input: ResolveReviewItemInput) {
-  return writeToBackend(() => appBackend.ResolveReviewItem(input));
+export function resolveReviewDecision(input: ResolveReviewDecisionInput) {
+  return writeToBackend(() => appBackend.ResolveReviewDecision(input));
 }
 
 export function excludeEvent(input: ExcludeEventInput) {

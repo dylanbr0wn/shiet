@@ -48,15 +48,15 @@ export function ListGapFills(arg1:context.Context,arg2:number):Promise<Array<ser
 
 export function ListGitHubRepos(arg1:context.Context):Promise<Array<service.GitHubRepo>>;
 
-export function ListOpenReviewItems(arg1:context.Context,arg2:number):Promise<Array<service.ReviewItem>>;
-
 export function ListPeriods(arg1:context.Context):Promise<Array<service.Period>>;
+
+export function ListReviewDecisions(arg1:context.Context,arg2:number):Promise<Array<service.ReviewDecision>>;
 
 export function ListSelectedCalendars(arg1:context.Context):Promise<Array<service.Calendar>>;
 
 export function ListTzSegments(arg1:context.Context,arg2:number):Promise<Array<service.TzSegment>>;
 
-export function ResolveReviewItem(arg1:context.Context,arg2:service.ResolveReviewItemInput):Promise<service.ResolveReviewItemResult>;
+export function ResolveReviewDecision(arg1:context.Context,arg2:service.ResolveReviewDecisionInput):Promise<service.ResolveReviewDecisionResult>;
 
 export function SaveAIConfig(arg1:context.Context,arg2:string,arg3:string):Promise<void>;
 

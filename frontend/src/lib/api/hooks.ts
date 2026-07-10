@@ -26,12 +26,12 @@ import {
   listGapFills,
   listGitHubRepos,
   listIntegrationConnections,
-  listOpenReviewItems,
+  listReviewDecisions,
   listPeriods,
   listSelectedCalendars,
   listTzSegments,
   refreshGitHubRepos,
-  resolveReviewItem,
+  resolveReviewDecision,
   saveAIConfig,
   saveAIEndpoint,
   saveAIModel,
@@ -76,8 +76,8 @@ export const shietQueryKeys = {
     [...shietQueryKeys.period(periodId), "eventCategoryOverlays"] as const,
   periodGapFills: (periodId: number) =>
     [...shietQueryKeys.period(periodId), "gapFills"] as const,
-  periodReviewItems: (periodId: number) =>
-    [...shietQueryKeys.period(periodId), "reviewItems"] as const,
+  periodReviewDecisions: (periodId: number) =>
+    [...shietQueryKeys.period(periodId), "reviewDecisions"] as const,
   periodTzSegments: (periodId: number) =>
     [...shietQueryKeys.period(periodId), "tzSegments"] as const,
   selectedCalendars: () =>
@@ -295,23 +295,23 @@ export function useDeleteManualEvent() {
   });
 }
 
-export function useOpenReviewItems(periodId: number | null | undefined) {
+export function useReviewDecisions(periodId: number | null | undefined) {
   return useQuery({
     enabled: typeof periodId === "number",
-    queryKey: shietQueryKeys.periodReviewItems(periodId ?? 0),
-    queryFn: () => listOpenReviewItems(periodId as number),
+    queryKey: shietQueryKeys.periodReviewDecisions(periodId ?? 0),
+    queryFn: () => listReviewDecisions(periodId as number),
   });
 }
 
-export function useResolveReviewItem() {
+export function useResolveReviewDecision() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: resolveReviewItem,
+    mutationFn: resolveReviewDecision,
     onSuccess: (result) => {
       const periodId = result.periodId;
       void queryClient.invalidateQueries({
-        queryKey: shietQueryKeys.periodReviewItems(periodId),
+        queryKey: shietQueryKeys.periodReviewDecisions(periodId),
       });
       void queryClient.invalidateQueries({
         queryKey: shietQueryKeys.periodEvents(periodId),
@@ -337,7 +337,7 @@ export function useExcludeEvent() {
         queryKey: shietQueryKeys.periodEvents(periodId),
       });
       void queryClient.invalidateQueries({
-        queryKey: shietQueryKeys.periodReviewItems(periodId),
+        queryKey: shietQueryKeys.periodReviewDecisions(periodId),
       });
       void queryClient.invalidateQueries({
         queryKey: shietQueryKeys.periodEventCategoryOverlays(periodId),
@@ -764,7 +764,7 @@ export function useSyncPeriod() {
         queryKey: shietQueryKeys.periodEventCategoryOverlays(periodID),
       });
       void queryClient.invalidateQueries({
-        queryKey: shietQueryKeys.periodReviewItems(periodID),
+        queryKey: shietQueryKeys.periodReviewDecisions(periodID),
       });
       void queryClient.invalidateQueries({
         queryKey: shietQueryKeys.gapTimeline(periodID),

@@ -5,7 +5,7 @@ import type {
   EventCategoryOverlay,
   GapFill,
   Period,
-  ReviewItem,
+  ReviewDecision,
   TzSegment,
 } from "@/lib/api";
 import {
@@ -39,7 +39,7 @@ export interface BuildSchedulePageDerivedArgs {
   eventCategoryOverlays: EventCategoryOverlay[];
   gapFills: GapFill[];
   gapTimeline: DayTimeline[];
-  reviewItems: ReviewItem[];
+  reviewDecisions: ReviewDecision[];
   tzSegments: TzSegment[];
   draftPlacements: Record<string, SchedulePlacement>;
   pendingCreate: {
@@ -77,7 +77,7 @@ export function buildSchedulePageDerived({
   eventCategoryOverlays,
   gapFills,
   gapTimeline,
-  reviewItems,
+  reviewDecisions,
   tzSegments,
   draftPlacements,
   pendingCreate,
@@ -102,10 +102,10 @@ export function buildSchedulePageDerived({
   const gapFillsByItemId = new Map(
     gapFills.map((gapFill) => [`gap-fill-${gapFill.id}`, gapFill]),
   );
-  const reviewItemsByEventId = new Map(
-    reviewItems
-      .filter((item) => typeof item.eventId === "number")
-      .map((item) => [item.eventId as number, { reviewItemId: item.id, kind: item.kind }]),
+  const reviewDecisionsByEventId = new Map(
+    reviewDecisions
+      .filter((decision) => typeof decision.eventId === "number")
+      .map((decision) => [decision.eventId as number, { reviewItemId: decision.id, kind: decision.kind }]),
   );
 
   const allDayChipsByDay = buildAllDayChipsByDay(
@@ -113,7 +113,7 @@ export function buildSchedulePageDerived({
     visibleDaySet,
     categoriesById,
     overlaysByKey,
-    reviewItemsByEventId,
+    reviewDecisionsByEventId,
   );
   const items = [
     ...events
@@ -124,7 +124,7 @@ export function buildSchedulePageDerived({
           categoriesById,
           resolveEventCategoryId(event, overlaysByKey),
           draftPlacements[`event-${event.id}`],
-          reviewItemsByEventId.get(event.id),
+          reviewDecisionsByEventId.get(event.id),
         ),
       )
       .filter((item): item is ScheduleItem => item !== null),

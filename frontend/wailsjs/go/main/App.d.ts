@@ -59,9 +59,9 @@ export function ListGitHubRepos():Promise<Array<service.GitHubRepo>>;
 
 export function ListIntegrationConnections():Promise<Array<connection.Connection>>;
 
-export function ListOpenReviewItems(arg1:number):Promise<Array<service.ReviewItem>>;
-
 export function ListPeriods():Promise<Array<service.Period>>;
+
+export function ListReviewDecisions(arg1:number):Promise<Array<service.ReviewDecision>>;
 
 export function ListSelectedCalendars():Promise<Array<service.Calendar>>;
 
@@ -69,7 +69,7 @@ export function ListTzSegments(arg1:number):Promise<Array<service.TzSegment>>;
 
 export function RefreshGitHubRepos(arg1:string):Promise<void>;
 
-export function ResolveReviewItem(arg1:service.ResolveReviewItemInput):Promise<service.ResolveReviewItemResult>;
+export function ResolveReviewDecision(arg1:service.ResolveReviewDecisionInput):Promise<service.ResolveReviewDecisionResult>;
 
 export function SaveAIConfig(arg1:string,arg2:string):Promise<void>;
 

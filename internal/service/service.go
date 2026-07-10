@@ -223,15 +223,39 @@ func (s *Service) ListGapFills(ctx context.Context, periodID int64) ([]GapFill, 
 
 // ── review queue ──────────────────────────────────────────────────────
 
-// ListOpenReviewItems returns the unresolved review-queue items for a period.
-func (s *Service) ListOpenReviewItems(ctx context.Context, periodID int64) ([]ReviewItem, error) {
+// ListReviewDecisions returns user-facing review decisions for a period.
+func (s *Service) ListReviewDecisions(ctx context.Context, periodID int64) ([]ReviewDecision, error) {
 	rows, err := s.q.ListOpenReviewItems(ctx, periodID)
 	if err != nil {
 		return nil, mapErr("list review items", err)
 	}
-	out := make([]ReviewItem, len(rows))
-	for i, r := range rows {
-		out[i] = toReviewItem(r)
+	if len(rows) == 0 {
+		return nil, nil
+	}
+
+	events, err := s.q.ListEventsForPeriod(ctx, periodID)
+	if err != nil {
+		return nil, mapErr("list events for review decisions", err)
+	}
+	eventsByID := make(map[int64]sqlc.Event, len(events))
+	for _, e := range events {
+		eventsByID[e.ID] = e
+	}
+
+	policy := s.review()
+	out := make([]ReviewDecision, 0, len(rows))
+	for _, row := range rows {
+		var event *sqlc.Event
+		if row.EventID.Valid {
+			if e, ok := eventsByID[row.EventID.Int64]; ok {
+				event = &e
+			}
+		}
+		decision, ok := policy.ToDecision(row, event)
+		if !ok {
+			continue
+		}
+		out = append(out, decision)
 	}
 	return out, nil
 }

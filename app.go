@@ -206,14 +206,14 @@ func (a *App) ListGapFills(periodID int64) ([]service.GapFill, error) {
 	return a.Svc.ListGapFills(a.callContext(), periodID)
 }
 
-// ListOpenReviewItems returns unresolved review items for a period.
-func (a *App) ListOpenReviewItems(periodID int64) ([]service.ReviewItem, error) {
-	return a.Svc.ListOpenReviewItems(a.callContext(), periodID)
+// ListReviewDecisions returns user-facing review decisions for a period.
+func (a *App) ListReviewDecisions(periodID int64) ([]service.ReviewDecision, error) {
+	return a.Svc.ListReviewDecisions(a.callContext(), periodID)
 }
 
-// ResolveReviewItem applies a user decision to a review-queue item.
-func (a *App) ResolveReviewItem(input service.ResolveReviewItemInput) (service.ResolveReviewItemResult, error) {
-	return a.Svc.ResolveReviewItem(a.callContext(), input)
+// ResolveReviewDecision applies a user decision to a review decision.
+func (a *App) ResolveReviewDecision(input service.ResolveReviewDecisionInput) (service.ResolveReviewDecisionResult, error) {
+	return a.Svc.ResolveReviewDecision(a.callContext(), input)
 }
 
 // ExcludeEvent hides a synced calendar event from the schedule for a period.

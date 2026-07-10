@@ -54,7 +54,7 @@ const mockState = vi.hoisted(() => {
       },
     ],
     gapTimeline: [],
-    reviewItems: [],
+    reviewDecisions: [],
     tzSegments: [],
     aiConfigured: true,
     aiLocal: false,
@@ -92,8 +92,8 @@ vi.mock("@/lib/api", () => ({
   }),
   useGapFills: () => ({ data: mockState.gapFills, isLoading: false, error: null }),
   useGapTimeline: () => ({ data: mockState.gapTimeline, isLoading: false, error: null }),
-  useOpenReviewItems: () => ({
-    data: mockState.reviewItems,
+  useReviewDecisions: () => ({
+    data: mockState.reviewDecisions,
     isLoading: false,
     error: null,
   }),

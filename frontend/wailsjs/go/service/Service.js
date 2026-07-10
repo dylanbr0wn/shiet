@@ -90,12 +90,12 @@ export function ListGitHubRepos(arg1) {
   return window['go']['service']['Service']['ListGitHubRepos'](arg1);
 }
 
-export function ListOpenReviewItems(arg1, arg2) {
-  return window['go']['service']['Service']['ListOpenReviewItems'](arg1, arg2);
-}
-
 export function ListPeriods(arg1) {
   return window['go']['service']['Service']['ListPeriods'](arg1);
+}
+
+export function ListReviewDecisions(arg1, arg2) {
+  return window['go']['service']['Service']['ListReviewDecisions'](arg1, arg2);
 }
 
 export function ListSelectedCalendars(arg1) {
@@ -106,8 +106,8 @@ export function ListTzSegments(arg1, arg2) {
   return window['go']['service']['Service']['ListTzSegments'](arg1, arg2);
 }
 
-export function ResolveReviewItem(arg1, arg2) {
-  return window['go']['service']['Service']['ResolveReviewItem'](arg1, arg2);
+export function ResolveReviewDecision(arg1, arg2) {
+  return window['go']['service']['Service']['ResolveReviewDecision'](arg1, arg2);
 }
 
 export function SaveAIConfig(arg1, arg2, arg3) {

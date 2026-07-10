@@ -669,25 +669,25 @@ export namespace service {
 		    return a;
 		}
 	}
-	export class ResolveReviewItemInput {
-	    reviewItemId: number;
+	export class ResolveReviewDecisionInput {
+	    decisionId: number;
 	    action: string;
 	
 	    static createFrom(source: any = {}) {
-	        return new ResolveReviewItemInput(source);
+	        return new ResolveReviewDecisionInput(source);
 	    }
 	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.reviewItemId = source["reviewItemId"];
+	        this.decisionId = source["decisionId"];
 	        this.action = source["action"];
 	    }
 	}
-	export class ResolveReviewItemResult {
+	export class ResolveReviewDecisionResult {
 	    periodId: number;
 	
 	    static createFrom(source: any = {}) {
-	        return new ResolveReviewItemResult(source);
+	        return new ResolveReviewDecisionResult(source);
 	    }
 	
 	    constructor(source: any = {}) {
@@ -695,34 +695,67 @@ export namespace service {
 	        this.periodId = source["periodId"];
 	    }
 	}
-	export class ReviewItem {
-	    id: number;
-	    periodId: number;
-	    kind: string;
-	    eventId?: number;
-	    payload: string;
-	    status: string;
-	    conflictKey?: string;
-	    decisionAction?: string;
-	    decisionPayload?: string;
+	export class ReviewDecisionAction {
+	    key: string;
+	    label: string;
+	    role: string;
+	    variant?: string;
 	
 	    static createFrom(source: any = {}) {
-	        return new ReviewItem(source);
+	        return new ReviewDecisionAction(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.key = source["key"];
+	        this.label = source["label"];
+	        this.role = source["role"];
+	        this.variant = source["variant"];
+	    }
+	}
+	export class ReviewDecision {
+	    id: number;
+	    kind: string;
+	    eventId?: number;
+	    tag: string;
+	    title: string;
+	    description: string;
+	    actions: ReviewDecisionAction[];
+	
+	    static createFrom(source: any = {}) {
+	        return new ReviewDecision(source);
 	    }
 	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.id = source["id"];
-	        this.periodId = source["periodId"];
 	        this.kind = source["kind"];
 	        this.eventId = source["eventId"];
-	        this.payload = source["payload"];
-	        this.status = source["status"];
-	        this.conflictKey = source["conflictKey"];
-	        this.decisionAction = source["decisionAction"];
-	        this.decisionPayload = source["decisionPayload"];
+	        this.tag = source["tag"];
+	        this.title = source["title"];
+	        this.description = source["description"];
+	        this.actions = this.convertValues(source["actions"], ReviewDecisionAction);
 	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
 	}
+	
 	export class SyncResult {
 	    added: number;
 	    updated: number;
