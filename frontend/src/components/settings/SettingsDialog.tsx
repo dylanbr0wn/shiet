@@ -6,6 +6,7 @@ import {
   MessagesSquare,
   Monitor,
   Moon,
+  Plug,
   Settings,
   Shield,
   Sparkles,
@@ -50,6 +51,7 @@ import { CalendarSettings } from "./CalendarSettings";
 import { CategorySettings } from "./CategorySettings";
 import { ExportSettings } from "./ExportSettings";
 import { GitHubSettings } from "./GitHubSettings";
+import { IntegrationsSettings } from "./integrations";
 import { SlackSettings } from "./SlackSettings";
 import { SettingBlock } from "./SettingBlock";
 
@@ -68,6 +70,7 @@ const sections: Array<{
   ready: boolean;
 }> = [
   { id: "general", label: "General", icon: Settings, ready: true },
+  { id: "integrations", label: "Integrations", icon: Plug, ready: true },
   { id: "calendars", label: "Calendars", icon: CalendarDays, ready: true },
   { id: "github", label: "GitHub", icon: Github, ready: true },
   { id: "slack", label: "Slack", icon: MessagesSquare, ready: true },
@@ -488,6 +491,9 @@ export function SettingsDialog({ children }: SettingsDialogProps) {
                   </div>
                 </SettingBlock>
               </div>
+            </TabsContent>
+            <TabsContent value="integrations" className="flex h-full min-h-0 flex-col overflow-hidden p-0">
+              <IntegrationsSettings />
             </TabsContent>
             <TabsContent value="calendars" className="min-h-0 overflow-auto p-5">
               <CalendarSettings />
