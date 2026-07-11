@@ -22,45 +22,42 @@ const sectionPaths = {
   export: "/settings/export",
 } as const satisfies Record<SettingsSectionId, string>;
 
-const sectionLinkClass = cn(
-  "relative inline-flex w-full items-center justify-start gap-1.5 rounded-md border border-transparent px-1.5 py-1.5 text-sm font-medium text-foreground/60 transition-all hover:text-foreground",
-  "[&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
-);
-
 function SettingsLayout() {
   return (
     <section className="app-no-drag grid min-h-0 flex-1 grid-cols-[180px_minmax(0,1fr)] overflow-hidden border-t border-border">
-      <nav className="flex h-full flex-col gap-0.5 border-r border-border bg-muted p-1">
+      <nav className="flex h-full flex-col gap-0.5 border-r border-border bg-sidebar p-1">
         {settingsNavItems.map((section) => {
           const Icon = section.icon;
 
           if (!section.ready) {
             return (
-              <button
+              <Button
                 key={section.id}
                 type="button"
                 disabled
-                className={cn(sectionLinkClass, "opacity-50")}
+                variant="ghost"
+                className="opacity-50 justify-start"
               >
-                <Icon className="size-4" />
+                <Icon className="size-4 " />
                 <span className="truncate">{section.label}</span>
-              </button>
+              </Button>
             );
           }
 
           return (
-            <Link
-              key={section.id}
-              to={sectionPaths[section.id]}
-              className={sectionLinkClass}
-              activeProps={{
-                className:
-                  "bg-background text-foreground shadow-sm dark:border-input dark:bg-input/30",
-              }}
-            >
-              <Icon className="size-4" />
-              <span className="truncate">{section.label}</span>
-            </Link>
+            <Button asChild variant="ghost" className="justify-start">
+              <Link
+                key={section.id}
+                activeProps={{
+                  className: cn("text-green-300 hover:text-green-300 bg-muted")
+                }}
+                to={sectionPaths[section.id]}
+              >
+                <Icon className="size-4" />
+                <span className="truncate">{section.label}</span>
+              </Link>
+            </Button>
+
           );
         })}
       </nav>
@@ -69,7 +66,7 @@ function SettingsLayout() {
         <div className="min-h-0 overflow-hidden">
           <Outlet />
         </div>
-        <footer className="flex items-center justify-end border-t border-border px-5 py-3">
+        <footer className="flex items-center justify-end border-t border-border px-5 py-3 bg-background-lighter">
           <Button asChild variant="secondary" size="sm">
             <Link to="/">Done</Link>
           </Button>
