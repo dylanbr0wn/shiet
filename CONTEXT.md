@@ -52,16 +52,17 @@ database.
   `SHIET_BROKER_BASE_URL` escape hatch only. See
   [ADR-0003](docs/adr/0003-in-app-oauth-credential-authority.md).
 - Portable frontend/backend operations use versioned Protobuf contracts and
-  Connect behind the frontend API facade. Wails bindings are restricted to
-  native-only desktop capabilities. The OAuth broker serves start,
-  handoff, refresh, and revoke only through Connect; provider callbacks and
-  operational endpoints remain ordinary HTTP. See
-  [ADR-0002](docs/adr/0002-connect-protobuf-api-boundary.md).
-
+  Connect as the sole application API behind the frontend facade. Wails is the
+  desktop shell only; platform-specific behavior (OAuth browser open, keychain,
+  optional native save dialog) runs inside Connect handlers via adapters. The
+  OAuth broker serves start, handoff, refresh, and revoke through Connect;
+  provider callbacks and operational endpoints remain ordinary HTTP. See
+  [ADR-0002](docs/adr/0002-connect-protobuf-api-boundary.md) and
+  [ADR-0005](docs/adr/0005-platform-adapters.md).
 - Integrations settings use one catalog + detail surface for all providers. Adding
   a provider adds a catalog entry and kind config adapter — not a new top-level
-  settings tab. See
-  [ADR-0002](docs/adr/0002-standardized-integrations-settings-surface.md).
+  settings tab. Connect/disconnect/auth/catalog use `IntegrationService`. See
+  [ADR-0004](docs/adr/0004-standardized-integrations-settings-surface.md).
 - Desktop and OAuth broker share one **zerolog** logging stack (`internal/log`)
   with ADR-0001 secret redaction. Desktop default log file:
   `<UserConfigDir>/shiet/shiet.log` (`log.path` / `SHIET_LOG_*`). Broker logs
@@ -70,8 +71,10 @@ database.
 ## Related docs
 
 - [DESIGN.md](DESIGN.md) — product shape, core loop, schema intent, roadmap
-- [docs/adr/0002-standardized-integrations-settings-surface.md](docs/adr/0002-standardized-integrations-settings-surface.md) — Integrations settings IA and API contract
+- [docs/adr/0002-connect-protobuf-api-boundary.md](docs/adr/0002-connect-protobuf-api-boundary.md) — Connect application API boundary
 - [docs/adr/0003-in-app-oauth-credential-authority.md](docs/adr/0003-in-app-oauth-credential-authority.md) — in-app BYO credentials + auth mode
+- [docs/adr/0004-standardized-integrations-settings-surface.md](docs/adr/0004-standardized-integrations-settings-surface.md) — Integrations settings IA and API contract
+- [docs/adr/0005-platform-adapters.md](docs/adr/0005-platform-adapters.md) — platform adapters behind Connect handlers
 - [docs/logging.md](docs/logging.md) — desktop + broker logging (paths, config, redaction)
 - [docs/oauth-broker.md](docs/oauth-broker.md) — broker operator runbook
 - [README.md](README.md) — setup, build, config

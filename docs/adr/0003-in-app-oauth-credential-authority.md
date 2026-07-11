@@ -15,7 +15,7 @@ YAML/env, loaded once at startup. User tokens already live in the OS keychain
 (DYL-44). That split made debugging painful: edit config, restart, reconnect,
 and no UI showed the active credential source.
 
-Integrations settings ([ADR-0002](0002-standardized-integrations-settings-surface.md))
+Integrations settings ([ADR-0004](0004-standardized-integrations-settings-surface.md))
 is the single Settings surface for providers. Auth mode and BYO credentials
 belong there as a provider-keyed concern — not three one-off panels and not
 per-provider config keys.
