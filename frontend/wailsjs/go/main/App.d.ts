@@ -28,6 +28,10 @@ export function GitHubOAuthAvailable():Promise<boolean>;
 
 export function ListAIModels(arg1:string,arg2:string):Promise<Array<string>>;
 
+export function LogPath():Promise<string>;
+
+export function RevealLogFolder():Promise<void>;
+
 export function SaveAIConfig(arg1:string,arg2:string):Promise<void>;
 
 export function SaveAIEndpoint(arg1:string):Promise<void>;

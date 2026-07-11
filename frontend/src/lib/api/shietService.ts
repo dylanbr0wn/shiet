@@ -13,7 +13,10 @@ import type {
   GapFill,
   GitHubRepo,
   GoogleAuthStatus,
+  IntegrationAuthStatus,
   IntegrationConnection,
+  IntegrationProvider,
+  ConnectIntegrationInput,
   ManualEventDeleteInput,
   ManualEventInput,
   ManualEventUpdateInput,
@@ -40,6 +43,7 @@ import {
 import {
   buildPeriodExportRPC,
   computeGapsRPC,
+  connectIntegrationRPC,
   createCategoryRPC,
   createExportTemplateRPC,
   createGapFillRPC,
@@ -47,11 +51,13 @@ import {
   deleteCategoryRPC,
   deleteExportTemplateRPC,
   deleteManualEventRPC,
+  disconnectIntegrationRPC,
   duplicateExportTemplateRPC,
   excludeEventRPC,
   getCategoryRPC,
   getEventRPC,
   getExportTemplateRPC,
+  getIntegrationAuthStatusRPC,
   getSettingRPC,
   listCalendarsRPC,
   listCategoriesRPC,
@@ -62,6 +68,7 @@ import {
   listGapFillsRPC,
   listGitHubReposRPC,
   listIntegrationConnectionsRPC,
+  listIntegrationProvidersRPC,
   listReviewDecisionsRPC,
   listSelectedCalendarsRPC,
   listSlackChannelsRPC,
@@ -96,6 +103,8 @@ interface ShietApp {
   GitHubAuthMode(): Promise<string>;
   GitHubOAuthAvailable(): Promise<boolean>;
   ListAIModels(baseURL: string, apiKey: string): Promise<string[]>;
+  LogPath(): Promise<string>;
+  RevealLogFolder(): Promise<void>;
   SlackAuthMode(): Promise<string>;
   SlackOAuthAvailable(): Promise<boolean>;
   SaveAIConfig(baseURL: string, model: string): Promise<void>;
@@ -410,37 +419,62 @@ export function listIntegrationConnections() {
   return readFromPortableBackend<IntegrationConnection[]>([], listIntegrationConnectionsRPC);
 }
 
-export function getGoogleAuthStatus() {
-  return readFromBackend<GoogleAuthStatus>(
-    { mode: "broker", brokerBaseUrl: "" },
-    () => appBackend.GetGoogleAuthStatus(),
+export function listIntegrationProviders() {
+  return readFromPortableBackend<IntegrationProvider[]>([], listIntegrationProvidersRPC);
+}
+
+export function getIntegrationAuthStatus(provider: string) {
+  return readFromPortableBackend<IntegrationAuthStatus>(
+    { provider, mode: "broker", brokerBaseUrl: "", oauthAvailable: true, supportsPat: provider === "github" },
+    () => getIntegrationAuthStatusRPC(provider),
   );
+}
+
+export function connectIntegration(input: ConnectIntegrationInput) {
+  return writeToPortableBackend(() => connectIntegrationRPC(input));
+}
+
+export function disconnectIntegration(provider: string, accountID: string) {
+  return writeToPortableBackend(() => disconnectIntegrationRPC(provider, accountID));
+}
+
+export function getGoogleAuthStatus() {
+  return getIntegrationAuthStatus("google").then((status) => ({
+    mode: status.mode,
+    brokerBaseUrl: status.brokerBaseUrl,
+  } satisfies GoogleAuthStatus));
+}
+
+export function getLogPath() {
+  return readFromBackend("", () => appBackend.LogPath());
+}
+
+export function revealLogFolder() {
+  return writeToBackend(() => appBackend.RevealLogFolder());
 }
 
 export function connectGoogle(accountID: string, accountLabel: string) {
-  return writeToBackend(() =>
-    appBackend.ConnectGoogle(accountID, accountLabel),
-  );
+  return connectIntegration({ provider: "google", accountId: accountID, accountLabel });
 }
 
 export function disconnectGoogle(accountID: string) {
-  return writeToBackend(() => appBackend.DisconnectGoogle(accountID));
+  return disconnectIntegration("google", accountID);
 }
 
 export function connectGitHub(pat: string) {
-  return writeToBackend(() => appBackend.ConnectGitHub(pat));
+  return connectIntegration({ provider: "github", pat });
 }
 
 export function githubAuthMode() {
-  return readFromBackend<string>("broker", () => appBackend.GitHubAuthMode());
+  return getIntegrationAuthStatus("github").then((status) => status.mode);
 }
 
 export function githubOAuthAvailable() {
-  return readFromBackend<boolean>(true, () => appBackend.GitHubOAuthAvailable());
+  return getIntegrationAuthStatus("github").then((status) => status.oauthAvailable);
 }
 
 export function disconnectGitHub(accountID: string) {
-  return writeToBackend(() => appBackend.DisconnectGitHub(accountID));
+  return disconnectIntegration("github", accountID);
 }
 
 export function listGitHubRepos() {
@@ -456,19 +490,19 @@ export function refreshGitHubRepos(accountID: string) {
 }
 
 export function connectSlack() {
-  return writeToBackend(() => appBackend.ConnectSlack());
+  return connectIntegration({ provider: "slack" });
 }
 
 export function slackAuthMode() {
-  return readFromBackend<string>("broker", () => appBackend.SlackAuthMode());
+  return getIntegrationAuthStatus("slack").then((status) => status.mode);
 }
 
 export function slackOAuthAvailable() {
-  return readFromBackend<boolean>(true, () => appBackend.SlackOAuthAvailable());
+  return getIntegrationAuthStatus("slack").then((status) => status.oauthAvailable);
 }
 
 export function disconnectSlack(accountID: string) {
-  return writeToBackend(() => appBackend.DisconnectSlack(accountID));
+  return disconnectIntegration("slack", accountID);
 }
 
 export function listSlackChannels() {
