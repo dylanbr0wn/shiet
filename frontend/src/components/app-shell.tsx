@@ -1,6 +1,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { Environment } from "../../wailsjs/runtime/runtime";
 import { AppHeader } from "@/components/app-header";
+import { useConfiguredTheme } from "@/components/settings/useConfiguredTheme";
 
 const MAC_TITLEBAR_PADDING_CLASS = "pl-24";
 const DEFAULT_TITLEBAR_PADDING_CLASS = "pl-3";
@@ -44,6 +45,7 @@ interface AppShellProps {
 
 export function AppShell({ children }: AppShellProps) {
   const titlebarPaddingClass = useTitlebarPaddingClass();
+  useConfiguredTheme();
 
   return (
     <main className="app-drag-region app-window relative h-screen overflow-hidden overscroll-none bg-background text-foreground">
