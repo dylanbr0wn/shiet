@@ -2,6 +2,7 @@ import {
   CalendarDays,
   Download,
   Github,
+  LoaderCircle,
   MessagesSquare,
   Monitor,
   Moon,
@@ -28,6 +29,7 @@ import {
 } from "@/components/ui/dialog";
 import {
   Field,
+  FieldError,
   FieldLabel,
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
@@ -39,7 +41,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
-import { useSetSetting, useSetting } from "@/lib/api";
+import { useLogPath, useRevealLogFolder, useSetSetting, useSetting } from "@/lib/api";
+import { isShietAppAvailable } from "@/lib/api/shietService";
+import { Environment } from "../../../wailsjs/runtime/runtime";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
 import { AIModelSettings } from "./AIModelSettings";
 import { CalendarSettings } from "./CalendarSettings";
@@ -229,6 +233,28 @@ export function SettingsDialog({ children }: SettingsDialogProps) {
     "events.declined",
     "exclude",
   );
+  const logPath = useLogPath();
+  const revealLogFolder = useRevealLogFolder();
+  const [revealLabel, setRevealLabel] = useState("Open log folder");
+  const [revealError, setRevealError] = useState<string | null>(null);
+  const appAvailable = isShietAppAvailable();
+
+  useEffect(() => {
+    let mounted = true;
+    void (async () => {
+      try {
+        const environment = await Environment();
+        if (mounted && environment.platform === "darwin") {
+          setRevealLabel("Reveal in Finder");
+        }
+      } catch {
+        // Wails runtime absent in plain Vite.
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   useConfiguredTheme(theme.value);
 
@@ -402,6 +428,63 @@ export function SettingsDialog({ children }: SettingsDialogProps) {
                       value={declinedEvents.value}
                       onValueChange={declinedEvents.setValue}
                     />
+                  </div>
+                </SettingBlock>
+
+                <SettingBlock
+                  title="Logs"
+                  description="Desktop diagnostics write JSON to this file. Open the folder to inspect or share logs."
+                >
+                  <div className="space-y-3">
+                    <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+                      <Field>
+                        <FieldLabel htmlFor="setting-log-path">
+                          Log file
+                        </FieldLabel>
+                        <Input
+                          id="setting-log-path"
+                          readOnly
+                          value={
+                            logPath.data ||
+                            (appAvailable ? "Loading…" : "Unavailable outside the desktop app")
+                          }
+                          className="bg-background font-mono text-xs"
+                        />
+                      </Field>
+                      <Button
+                        type="button"
+                        size="sm"
+                        disabled={
+                          !appAvailable ||
+                          revealLogFolder.isPending ||
+                          !logPath.data
+                        }
+                        onClick={() => {
+                          setRevealError(null);
+                          revealLogFolder.mutate(undefined, {
+                            onError: (error) => {
+                              setRevealError(
+                                error instanceof Error
+                                  ? error.message
+                                  : "Could not open log folder",
+                              );
+                            },
+                          });
+                        }}
+                      >
+                        {revealLogFolder.isPending ? (
+                          <LoaderCircle className="size-4 animate-spin" />
+                        ) : (
+                          revealLabel
+                        )}
+                      </Button>
+                    </div>
+                    {revealError ? <FieldError>{revealError}</FieldError> : null}
+                    {!appAvailable ? (
+                      <p className="text-xs text-muted-foreground">
+                        Reveal requires the desktop app.
+                      </p>
+                    ) : null}
                   </div>
                 </SettingBlock>
               </div>

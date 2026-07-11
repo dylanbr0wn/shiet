@@ -30,7 +30,7 @@ compiled together with a React/TypeScript frontend (`frontend/`, pnpm) into one 
 Portable frontend/backend operations use same-origin Connect handlers mounted through Wails'
 AssetServer; Wails is the desktop shell, not the application API. Connect handlers use
 platform adapters for OAuth browser open, keychain, and optional native save dialog
-(see `docs/adr/0003-platform-adapters.md`). Legacy Wails `App` bindings are deprecated
+(see `docs/adr/0005-platform-adapters.md`). Legacy Wails `App` bindings are deprecated
 and being removed as operations move to Connect.
 Data lives in an embedded SQLite file (pure-Go `modernc.org/sqlite`), auto-migrated and seeded on
 startup. There are no separate backing services to run.

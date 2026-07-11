@@ -96,6 +96,8 @@ interface ShietApp {
   GitHubAuthMode(): Promise<string>;
   GitHubOAuthAvailable(): Promise<boolean>;
   ListAIModels(baseURL: string, apiKey: string): Promise<string[]>;
+  LogPath(): Promise<string>;
+  RevealLogFolder(): Promise<void>;
   SlackAuthMode(): Promise<string>;
   SlackOAuthAvailable(): Promise<boolean>;
   SaveAIConfig(baseURL: string, model: string): Promise<void>;
@@ -415,6 +417,14 @@ export function getGoogleAuthStatus() {
     { mode: "broker", brokerBaseUrl: "" },
     () => appBackend.GetGoogleAuthStatus(),
   );
+}
+
+export function getLogPath() {
+  return readFromBackend("", () => appBackend.LogPath());
+}
+
+export function revealLogFolder() {
+  return writeToBackend(() => appBackend.RevealLogFolder());
 }
 
 export function connectGoogle(accountID: string, accountLabel: string) {

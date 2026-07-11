@@ -1,4 +1,4 @@
-# ADR-0003: Platform Adapters Behind Connect Handlers
+# ADR-0005: Platform Adapters Behind Connect Handlers
 
 - Status: Accepted
 - Date: 2026-07-10

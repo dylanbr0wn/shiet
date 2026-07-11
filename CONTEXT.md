@@ -18,8 +18,10 @@ database.
 - **Handoff code**: a short-lived, one-time broker code that lets the desktop app
   retrieve token material after the broker completes a provider callback.
 - **BYO credentials**: a developer or advanced-user mode where the desktop app
-  is configured with provider OAuth credentials from local config or
-  environment. GitHub PAT connect is also retained as an advanced-user path.
+  uses provider OAuth client credentials stored in the OS keychain (with
+  non-secret metadata in SQLite), edited from Integrations settings. GitHub PAT
+  connect remains an advanced-user path. See
+  [ADR-0003](docs/adr/0003-in-app-oauth-credential-authority.md).
 - **Integration**: a third-party service the desktop app connects to (e.g. Google
   Calendar, GitHub, Slack). Each integration has one or more connected accounts
   tracked in the connection registry.
@@ -42,6 +44,13 @@ database.
   App secret. GitHub OAuth App user tokens are handed to the desktop keychain,
   are not refreshed by the broker, and are revoked through the broker on
   disconnect. Local/BYO OAuth and PAT connect remain available.
+- Desktop OAuth auth mode and BYO client credentials are in-app authority
+  (keychain + SQLite metadata), edited on the Integrations detail surface for
+  Google, GitHub, and Slack together. Per-provider OAuth keys are removed from
+  YAML/env. One top-level broker URL defaults to production
+  (`https://auth.shiet.app`), with an optional `broker.base_url` /
+  `SHIET_BROKER_BASE_URL` escape hatch only. See
+  [ADR-0003](docs/adr/0003-in-app-oauth-credential-authority.md).
 - Portable frontend/backend operations use versioned Protobuf contracts and
   Connect as the sole application API behind the frontend facade. Wails is the
   desktop shell only; platform-specific behavior (OAuth browser open, keychain,
@@ -49,18 +58,23 @@ database.
   OAuth broker serves start, handoff, refresh, and revoke through Connect;
   provider callbacks and operational endpoints remain ordinary HTTP. See
   [ADR-0002](docs/adr/0002-connect-protobuf-api-boundary.md) and
-  [ADR-0003](docs/adr/0003-platform-adapters.md).
-
+  [ADR-0005](docs/adr/0005-platform-adapters.md).
 - Integrations settings use one catalog + detail surface for all providers. Adding
   a provider adds a catalog entry and kind config adapter — not a new top-level
   settings tab. Connect/disconnect/auth/catalog use `IntegrationService`. See
   [ADR-0004](docs/adr/0004-standardized-integrations-settings-surface.md).
+- Desktop and OAuth broker share one **zerolog** logging stack (`internal/log`)
+  with ADR-0001 secret redaction. Desktop default log file:
+  `<UserConfigDir>/shiet/shiet.log` (`log.path` / `SHIET_LOG_*`). Broker logs
+  JSON to stdout. See [docs/logging.md](docs/logging.md).
 
 ## Related docs
 
 - [DESIGN.md](DESIGN.md) — product shape, core loop, schema intent, roadmap
 - [docs/adr/0002-connect-protobuf-api-boundary.md](docs/adr/0002-connect-protobuf-api-boundary.md) — Connect application API boundary
-- [docs/adr/0003-platform-adapters.md](docs/adr/0003-platform-adapters.md) — platform adapters behind Connect handlers
+- [docs/adr/0003-in-app-oauth-credential-authority.md](docs/adr/0003-in-app-oauth-credential-authority.md) — in-app BYO credentials + auth mode
 - [docs/adr/0004-standardized-integrations-settings-surface.md](docs/adr/0004-standardized-integrations-settings-surface.md) — Integrations settings IA and API contract
+- [docs/adr/0005-platform-adapters.md](docs/adr/0005-platform-adapters.md) — platform adapters behind Connect handlers
+- [docs/logging.md](docs/logging.md) — desktop + broker logging (paths, config, redaction)
 - [docs/oauth-broker.md](docs/oauth-broker.md) — broker operator runbook
 - [README.md](README.md) — setup, build, config

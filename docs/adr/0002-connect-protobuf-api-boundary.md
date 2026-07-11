@@ -21,7 +21,7 @@ gRPC-Web, and gRPC clients.
 A transport change alone does not create a hosted web product. User identity,
 tenant ownership, hosted persistence, browser sessions, and the privacy impact
 of moving local SQLite/keychain data remain separate architecture decisions.
-See [ADR-0003](0003-platform-adapters.md) for how platform-specific behavior
+See [ADR-0005](0005-platform-adapters.md) for how platform-specific behavior
 stays behind handlers without splitting the frontend contract.
 
 ## Decision
@@ -57,7 +57,7 @@ mount for `/rpc`. It is **not** an application API surface.
 - Deprecate and remove existing `App` exports as each operation moves to Connect.
 - Platform-specific behavior (keychain, system browser during OAuth, optional
   native save dialog) runs inside Connect handlers via adapters defined in
-  [ADR-0003](0003-platform-adapters.md).
+  [ADR-0005](0005-platform-adapters.md).
 
 `service.Service` itself is not Wails-bound.
 

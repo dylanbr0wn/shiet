@@ -35,7 +35,7 @@ settings shell with a narrow extension boundary.
 Application transport is defined in
 [ADR-0002](0002-connect-protobuf-api-boundary.md): Connect is the sole frontend
 API. Platform-specific OAuth and token storage use adapters in
-[ADR-0003](0003-platform-adapters.md).
+[ADR-0005](0005-platform-adapters.md).
 
 ## Decision
 
@@ -94,7 +94,7 @@ components under `frontend/src/components/settings/integrations/`:
 | `ConnectionCard` | Account label, status badge, connected-at, disconnect / reconnect actions |
 | `ConnectionStatusBadge` | `connected` / `needs_reauth` / `disconnected` — single implementation |
 | `ConnectActions` | Provider-keyed connect UI (OAuth button, account hint input, PAT `<details>`) |
-| `AuthModeDescription` | Broker vs local/BYO copy; never shows secrets or token material |
+| `AuthModeDescription` | Broker vs local/BYO status; never shows secrets or token material. Editable mode + BYO credential controls land here per [ADR-0003](0003-in-app-oauth-credential-authority.md) |
 | `ResourceMultiSelect` | Scrollable list with per-row selected toggle; optional extra fields via render prop |
 
 Kind-specific slots register against the provider id:
@@ -158,7 +158,7 @@ Do **not** add a `SettingsDialog` top-level tab.
 All integration settings operations use **Connect `IntegrationService`** per
 [ADR-0002](0002-connect-protobuf-api-boundary.md). Handlers delegate to
 `internal/integration/*` providers via platform adapters
-([ADR-0003](0003-platform-adapters.md)).
+([ADR-0005](0005-platform-adapters.md)).
 
 #### Shared operations (`IntegrationService`)
 
@@ -304,7 +304,7 @@ implementation issues can land after 0.1.0.
   broker boundary, provider extension checklist (DYL-97).
 - [ADR-0002: Connect and Protobuf API Boundary](0002-connect-protobuf-api-boundary.md) —
   sole application transport.
-- [ADR-0003: Platform Adapters](0003-platform-adapters.md) — keychain, browser, export.
+- [ADR-0005: Platform Adapters](0005-platform-adapters.md) — keychain, browser, export.
 - [DESIGN.md](../../DESIGN.md) — product loop, calendar scope, activity evidence rule.
 - [CONTEXT.md](../../CONTEXT.md) — glossary terms for integrations settings.
 - Linear: DYL-110 (this design), DYL-32, DYL-35, DYL-36, DYL-37, DYL-43, DYL-95, DYL-97.

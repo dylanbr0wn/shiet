@@ -50,6 +50,14 @@ export function ListAIModels(arg1, arg2) {
   return window['go']['main']['App']['ListAIModels'](arg1, arg2);
 }
 
+export function LogPath() {
+  return window['go']['main']['App']['LogPath']();
+}
+
+export function RevealLogFolder() {
+  return window['go']['main']['App']['RevealLogFolder']();
+}
+
 export function SaveAIConfig(arg1, arg2) {
   return window['go']['main']['App']['SaveAIConfig'](arg1, arg2);
 }
