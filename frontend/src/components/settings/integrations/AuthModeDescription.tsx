@@ -1,8 +1,8 @@
-import { useGoogleAuthStatus } from "@/lib/api";
-import type { GoogleAuthStatus } from "@/lib/api";
+import { useIntegrationAuthStatus } from "@/lib/api";
+import type { IntegrationAuthStatus } from "@/lib/api";
 import type { IntegrationProviderId } from "./registry";
 
-function googleAuthDescription(status: GoogleAuthStatus | undefined) {
+function googleAuthDescription(status: IntegrationAuthStatus | undefined) {
   const keychain =
     "OAuth opens in your browser; tokens stay in the OS keychain.";
   if (!status) {
@@ -38,7 +38,9 @@ export function AuthModeDescription({
 }: {
   provider: IntegrationProviderId;
 }) {
-  const googleAuthQuery = useGoogleAuthStatus();
+  const googleAuthQuery = useIntegrationAuthStatus("google", {
+    enabled: provider === "google",
+  });
   const description =
     provider === "google"
       ? googleAuthDescription(googleAuthQuery.data)

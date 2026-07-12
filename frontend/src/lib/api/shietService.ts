@@ -448,27 +448,12 @@ export function disconnectIntegration(provider: string, accountID: string) {
   return writeToPortableBackend(() => disconnectIntegrationRPC(provider, accountID));
 }
 
-export function getGoogleAuthStatus() {
-  return getIntegrationAuthStatus("google").then((status) => ({
-    mode: status.mode,
-    brokerBaseUrl: status.brokerBaseUrl,
-  } satisfies GoogleAuthStatus));
-}
-
 export function getLogPath() {
   return readFromBackend("", () => appBackend.LogPath());
 }
 
 export function revealLogFolder() {
   return writeToBackend(() => appBackend.RevealLogFolder());
-}
-
-export function connectGoogle(accountID: string, accountLabel: string) {
-  return connectIntegration({ provider: "google", accountId: accountID, accountLabel });
-}
-
-export function disconnectGoogle(accountID: string) {
-  return disconnectIntegration("google", accountID);
 }
 
 export function connectGitHub(pat: string) {
