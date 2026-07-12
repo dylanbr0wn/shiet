@@ -26,49 +26,21 @@ export function IntegrationDetail({ providerId }: { providerId: string }) {
     );
   }
 
-  if (entry.ConfigSlot) {
-    const ConfigSlot = entry.ConfigSlot;
-
-    return (
-      <div className="flex h-full min-h-0 flex-col w-full">
-        <div className="min-h-0 flex-1 overflow-auto p-5">
-          <div className="mx-auto max-w-2xl space-y-6">
-            <IntegrationConnectShell
-              providerId={entry.id}
-              displayName={entry.displayName}
-              disabled={slotBusy}
-              onBusyChange={setConnectBusy}
-            />
-            <ConfigSlot disabled={connectBusy} onBusyChange={setSlotBusy} />
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  if (entry.Panel) {
-    const Panel = entry.Panel;
-
-    return (
-      <div className="flex h-full min-h-0 flex-col w-full">
-        <div className="min-h-0 flex-1 overflow-auto p-5">
-          <Panel />
-        </div>
-      </div>
-    );
-  }
+  const ConfigSlot = entry.ConfigSlot;
 
   return (
-    <div className="mx-auto max-w-2xl space-y-4 p-5">
-      <Button type="button" variant="ghost" size="sm" asChild>
-        <Link to="/settings/integrations">
-          <ArrowLeft className="size-4" />
-          Back to integrations
-        </Link>
-      </Button>
-      <p className="text-sm text-muted-foreground">
-        This integration is not configured yet.
-      </p>
+    <div className="flex h-full min-h-0 flex-col w-full">
+      <div className="min-h-0 flex-1 overflow-auto p-5">
+        <div className="mx-auto max-w-2xl space-y-6">
+          <IntegrationConnectShell
+            providerId={entry.id}
+            displayName={entry.displayName}
+            disabled={slotBusy}
+            onBusyChange={setConnectBusy}
+          />
+          <ConfigSlot disabled={connectBusy} onBusyChange={setSlotBusy} />
+        </div>
+      </div>
     </div>
   );
 }

@@ -2,7 +2,7 @@ import type { ComponentType } from "react";
 import type { IntegrationConnection } from "@/lib/api";
 import { CalendarSourceConfig } from "./CalendarSourceConfig";
 import { GitHubEvidenceConfig } from "./GitHubEvidenceConfig";
-import { SlackSettings } from "../SlackSettings";
+import { SlackEvidenceConfig } from "./SlackEvidenceConfig";
 import type { IntegrationConfigSlotProps } from "./types";
 
 export type IntegrationKind = "calendar_source" | "activity_evidence";
@@ -13,10 +13,7 @@ export type IntegrationCatalogEntry = {
   id: IntegrationProviderId;
   displayName: string;
   kind: IntegrationKind;
-  /** Legacy full panel — Slack until DYL-115 */
-  Panel?: ComponentType;
-  /** Kind config only — Google (DYL-114), GitHub (DYL-116) */
-  ConfigSlot?: ComponentType<IntegrationConfigSlotProps>;
+  ConfigSlot: ComponentType<IntegrationConfigSlotProps>;
 };
 
 export function aggregateProviderStatus(
@@ -67,7 +64,7 @@ export const integrationRegistry: IntegrationCatalogEntry[] = [
     id: "slack",
     displayName: "Slack",
     kind: "activity_evidence",
-    Panel: SlackSettings,
+    ConfigSlot: SlackEvidenceConfig,
   },
 ];
 

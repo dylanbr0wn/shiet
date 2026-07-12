@@ -39,10 +39,19 @@ function githubAuthDescription(status: IntegrationAuthStatus | undefined) {
   return `Auth: broker (${brokerHost(status)}). ${purpose} ${keychain}`;
 }
 
-const staticDescriptions: Record<"slack", string> = {
-  slack:
-    "Connect Slack to pick channels as read-only evidence sources for AI gap-fill. OAuth tokens stay in the OS keychain. Shiet never posts messages.",
-};
+function slackAuthDescription(status: IntegrationAuthStatus | undefined) {
+  const keychain =
+    "OAuth tokens stay in the OS keychain. Shiet never posts messages.";
+  const purpose =
+    "Connect Slack to pick channels as read-only evidence sources for AI gap-fill.";
+  if (!status) {
+    return `${purpose} ${keychain}`;
+  }
+  if (status.mode === "local") {
+    return `Auth: local / BYO credentials. ${purpose} ${keychain}`;
+  }
+  return `Auth: broker (${brokerHost(status)}). ${purpose} ${keychain}`;
+}
 
 export function AuthModeDescription({
   provider,
@@ -55,13 +64,16 @@ export function AuthModeDescription({
   const githubAuthQuery = useIntegrationAuthStatus("github", {
     enabled: provider === "github",
   });
+  const slackAuthQuery = useIntegrationAuthStatus("slack", {
+    enabled: provider === "slack",
+  });
 
   const description =
     provider === "google"
       ? googleAuthDescription(googleAuthQuery.data)
       : provider === "github"
         ? githubAuthDescription(githubAuthQuery.data)
-        : staticDescriptions[provider];
+        : slackAuthDescription(slackAuthQuery.data);
 
   return <>{description}</>;
 }
