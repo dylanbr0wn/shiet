@@ -3,7 +3,6 @@ import {
   classifyAIEndpoint,
   computeGaps,
   connectGitHub,
-  connectGoogle,
   connectIntegration,
   connectSlack,
   createGapFill,
@@ -12,7 +11,6 @@ import {
   deleteCategory,
   deleteManualEvent,
   disconnectGitHub,
-  disconnectGoogle,
   disconnectIntegration,
   disconnectSlack,
   discoverLocalAIEndpoints,
@@ -683,10 +681,14 @@ export function useIntegrationProviders() {
   });
 }
 
-export function useIntegrationAuthStatus(provider: string) {
+export function useIntegrationAuthStatus(
+  provider: string,
+  options?: { enabled?: boolean },
+) {
   return useQuery({
     queryKey: shietQueryKeys.integrationAuthStatus(provider),
     queryFn: () => getIntegrationAuthStatus(provider),
+    enabled: options?.enabled ?? true,
   });
 }
 
@@ -746,17 +748,6 @@ export function useDisconnectIntegration() {
   });
 }
 
-export function useGoogleAuthStatus() {
-  return useQuery({
-    queryKey: shietQueryKeys.integrationAuthStatus("google"),
-    queryFn: () => getIntegrationAuthStatus("google"),
-    select: (status) => ({
-      mode: status.mode,
-      brokerBaseUrl: status.brokerBaseUrl,
-    }),
-  });
-}
-
 export function useLogPath() {
   return useQuery({
     queryKey: shietQueryKeys.logPath(),
@@ -767,35 +758,6 @@ export function useLogPath() {
 export function useRevealLogFolder() {
   return useMutation({
     mutationFn: revealLogFolder,
-  });
-}
-
-export function useConnectGoogle() {
-  const queryClient = useQueryClient();
-  const refreshGoogleQueries = () => {
-    invalidateProviderIntegrationQueries(queryClient, "google");
-  };
-
-  return useMutation({
-    mutationFn: ({
-      accountID,
-      accountLabel,
-    }: {
-      accountID: string;
-      accountLabel: string;
-    }) => connectGoogle(accountID, accountLabel),
-    onSettled: refreshGoogleQueries,
-  });
-}
-
-export function useDisconnectGoogle() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: (accountID: string) => disconnectGoogle(accountID),
-    onSuccess: () => {
-      invalidateProviderIntegrationQueries(queryClient, "google");
-    },
   });
 }
 

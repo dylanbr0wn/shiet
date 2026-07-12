@@ -1,4 +1,5 @@
 export { AuthModeDescription } from "./AuthModeDescription";
+export { CalendarSourceConfig } from "./CalendarSourceConfig";
 export { ConnectActions } from "./ConnectActions";
 export { ConnectionCard } from "./ConnectionCard";
 export {
@@ -6,6 +7,7 @@ export {
   ConnectionStatusBadge,
 } from "./ConnectionStatusBadge";
 export { IntegrationCatalog } from "./IntegrationCatalog";
+export { IntegrationConnectShell } from "./IntegrationConnectShell";
 export { IntegrationDetail } from "./IntegrationDetail";
 export {
   aggregateProviderStatus,
@@ -17,3 +19,4 @@ export {
   type IntegrationKind,
   type IntegrationProviderId,
 } from "./registry";
+export type { IntegrationConfigSlotProps } from "./types";

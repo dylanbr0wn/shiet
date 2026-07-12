@@ -1,8 +1,9 @@
 import type { ComponentType } from "react";
 import type { IntegrationConnection } from "@/lib/api";
-import { CalendarSettings } from "../CalendarSettings";
+import { CalendarSourceConfig } from "./CalendarSourceConfig";
 import { GitHubSettings } from "../GitHubSettings";
 import { SlackSettings } from "../SlackSettings";
+import type { IntegrationConfigSlotProps } from "./types";
 
 export type IntegrationKind = "calendar_source" | "activity_evidence";
 
@@ -12,7 +13,10 @@ export type IntegrationCatalogEntry = {
   id: IntegrationProviderId;
   displayName: string;
   kind: IntegrationKind;
-  Panel: ComponentType;
+  /** Legacy full panel — GitHub/Slack until DYL-115/116 */
+  Panel?: ComponentType;
+  /** Kind config only — Google after DYL-114 */
+  ConfigSlot?: ComponentType<IntegrationConfigSlotProps>;
 };
 
 export function aggregateProviderStatus(
@@ -51,7 +55,7 @@ export const integrationRegistry: IntegrationCatalogEntry[] = [
     id: "google",
     displayName: "Google Calendar",
     kind: "calendar_source",
-    Panel: CalendarSettings,
+    ConfigSlot: CalendarSourceConfig,
   },
   {
     id: "github",
