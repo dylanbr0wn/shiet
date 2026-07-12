@@ -6,6 +6,7 @@ import {
   useIntegrationAuthStatus,
   useIntegrationConnections,
   useRefreshGitHubRepos,
+  useRefreshSlackChannels,
 } from "@/lib/api";
 import { SettingBlock } from "../SettingBlock";
 import { AuthModeDescription } from "./AuthModeDescription";
@@ -39,9 +40,10 @@ const PROVIDER_LABELS: Record<
   },
   slack: {
     account: "Slack workspace",
-    connected: "Connected Accounts",
+    connected: "Connected Workspaces",
     empty: "No Slack workspace connected yet.",
-    connectedDescription: "Manage your connected Slack workspaces.",
+    connectedDescription:
+      "Connected Slack workspaces are used to list channels for evidence selection.",
   },
 };
 
@@ -55,9 +57,13 @@ export function IntegrationConnectShell({
   const connectIntegration = useConnectIntegration();
   const disconnectIntegration = useDisconnectIntegration();
   const refreshGitHubRepos = useRefreshGitHubRepos();
+  const refreshSlackChannels = useRefreshSlackChannels();
 
   const githubAuthQuery = useIntegrationAuthStatus("github", {
     enabled: providerId === "github",
+  });
+  const slackAuthQuery = useIntegrationAuthStatus("slack", {
+    enabled: providerId === "slack",
   });
 
   const [accountEmail, setAccountEmail] = useState("");
@@ -75,7 +81,8 @@ export function IntegrationConnectShell({
   const connectBusy =
     connectIntegration.isPending ||
     disconnectIntegration.isPending ||
-    (providerId === "github" && refreshGitHubRepos.isPending);
+    (providerId === "github" && refreshGitHubRepos.isPending) ||
+    (providerId === "slack" && refreshSlackChannels.isPending);
 
   useEffect(() => {
     onBusyChange?.(connectBusy);
@@ -174,12 +181,37 @@ export function IntegrationConnectShell({
     }
   };
 
-  if (providerId !== "google" && providerId !== "github") {
+  const handleSlackOAuthConnect = async () => {
+    setConnectError(null);
+    try {
+      await connectIntegration.mutateAsync({
+        provider: "slack",
+      });
+    } catch (error) {
+      handleConnectError(error, "connect");
+    }
+  };
+
+  const handleRefreshChannels = async (accountID: string) => {
+    setConnectError(null);
+    try {
+      await refreshSlackChannels.mutateAsync(accountID);
+    } catch (error) {
+      setConnectError(
+        error instanceof Error
+          ? error.message
+          : "Unable to refresh Slack channels",
+      );
+    }
+  };
+
+  if (providerId !== "google" && providerId !== "github" && providerId !== "slack") {
     return null;
   }
 
-  const authMode = githubAuthQuery.data?.mode ?? "broker";
-  const oauthAvailable = githubAuthQuery.data?.oauthAvailable ?? true;
+  const githubAuthMode = githubAuthQuery.data?.mode ?? "broker";
+  const githubOauthAvailable = githubAuthQuery.data?.oauthAvailable ?? true;
+  const slackOauthAvailable = slackAuthQuery.data?.oauthAvailable ?? false;
 
   return (
     <>
@@ -203,15 +235,24 @@ export function IntegrationConnectShell({
             disabled={isDisabled}
             connectError={connectError}
           />
-        ) : (
+        ) : providerId === "github" ? (
           <ConnectActions
             provider="github"
-            oauthAvailable={oauthAvailable}
-            authMode={authMode}
+            oauthAvailable={githubOauthAvailable}
+            authMode={githubAuthMode}
             pat={pat}
             onPatChange={setPat}
             onOAuthConnect={() => void handleGitHubOAuthConnect()}
             onPatConnect={() => void handleGitHubPATConnect()}
+            isConnecting={connectIntegration.isPending}
+            disabled={isDisabled}
+            connectError={connectError}
+          />
+        ) : (
+          <ConnectActions
+            provider="slack"
+            oauthAvailable={slackOauthAvailable}
+            onOAuthConnect={() => void handleSlackOAuthConnect()}
             isConnecting={connectIntegration.isPending}
             disabled={isDisabled}
             connectError={connectError}
@@ -242,7 +283,12 @@ export function IntegrationConnectShell({
                         label: "Refresh repos",
                         onClick: (accountID) => void handleRefreshRepos(accountID),
                       }
-                    : undefined
+                    : providerId === "slack"
+                      ? {
+                          label: "Refresh channels",
+                          onClick: (accountID) => void handleRefreshChannels(accountID),
+                        }
+                      : undefined
                 }
               />
             ))}

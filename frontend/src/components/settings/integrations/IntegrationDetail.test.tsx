@@ -61,6 +61,18 @@ vi.mock("@/lib/api", () => ({
     isPending: false,
     mutateAsync: vi.fn(),
   }),
+  useRefreshSlackChannels: () => ({
+    isPending: false,
+    mutateAsync: vi.fn(),
+  }),
+  useSlackChannels: () => ({
+    data: [],
+    isLoading: false,
+  }),
+  useSetSlackChannelSelected: () => ({
+    isPending: false,
+    mutateAsync: vi.fn(),
+  }),
 }));
 
 function createWrapper() {
@@ -104,6 +116,20 @@ describe("IntegrationDetail", () => {
     expect(screen.getByText("Repositories")).toBeTruthy();
     expect(
       screen.getByText("Connect a GitHub account to see repositories here."),
+    ).toBeTruthy();
+  });
+
+  it("renders Slack connect shell and channel config slot", () => {
+    render(<IntegrationDetail providerId="slack" />, {
+      wrapper: createWrapper(),
+    });
+
+    expect(screen.getByText("Slack")).toBeTruthy();
+    expect(screen.getByText("Connect with Slack")).toBeTruthy();
+    expect(screen.getByText("Connected Workspaces")).toBeTruthy();
+    expect(screen.getByText("Channels")).toBeTruthy();
+    expect(
+      screen.getByText("Connect a Slack workspace to see channels here."),
     ).toBeTruthy();
   });
 

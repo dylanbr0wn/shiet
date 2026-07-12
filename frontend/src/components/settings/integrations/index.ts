@@ -1,6 +1,7 @@
 export { AuthModeDescription } from "./AuthModeDescription";
 export { CalendarSourceConfig } from "./CalendarSourceConfig";
 export { GitHubEvidenceConfig } from "./GitHubEvidenceConfig";
+export { SlackEvidenceConfig } from "./SlackEvidenceConfig";
 export { ConnectActions } from "./ConnectActions";
 export { ConnectionCard } from "./ConnectionCard";
 export {
