@@ -74,20 +74,20 @@ func TestResolveReviewDecision_DeletedCategorizedKeep(t *testing.T) {
 	if len(events) != 0 {
 		t.Fatalf("calendar event should be hidden after manual conversion, got %+v", events)
 	}
-	fills, err := e.svc.ListGapFills(ctx, e.periodID)
+	fills, err := e.svc.ListTimeEntries(ctx, e.periodID)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(fills) != 1 {
 		t.Fatalf("want one manual copy, got %+v", fills)
 	}
-	if fills[0].Source != "manual" || fills[0].Note != "Standup" || fills[0].CategoryID == nil || *fills[0].CategoryID != e.catID {
+	if fills[0].Method != "" || fills[0].Description != "Standup" || fills[0].CategoryID == nil || *fills[0].CategoryID != e.catID {
 		t.Fatalf("manual copy did not preserve event title/category: %+v", fills[0])
 	}
-	if err := e.svc.DeleteManualEvent(ctx, service.ManualEventDeleteInput{ID: fills[0].ID, PeriodID: e.periodID}); err != nil {
+	if err := e.svc.DeleteTimeEntry(ctx, service.TimeEntryDeleteInput{ID: fills[0].ID, PeriodID: e.periodID}); err != nil {
 		t.Fatalf("manual copy should be deletable: %v", err)
 	}
-	fills, err = e.svc.ListGapFills(ctx, e.periodID)
+	fills, err = e.svc.ListTimeEntries(ctx, e.periodID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -153,7 +153,7 @@ func TestResolveReviewDecision_NewInGapUseEvent(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	fills, err := e.svc.ListGapFills(ctx, e.periodID)
+	fills, err := e.svc.ListTimeEntries(ctx, e.periodID)
 	if err != nil {
 		t.Fatal(err)
 	}

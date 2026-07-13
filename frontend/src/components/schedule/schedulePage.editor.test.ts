@@ -2,35 +2,35 @@
 
 import { act, renderHook } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import type { GapFill } from "@/lib/api";
+import type { TimeEntry } from "@/lib/api";
 import { useSchedulePageEditor } from "./schedulePage.editor";
 
-const gapFills: GapFill[] = [
+const timeEntries: TimeEntry[] = [
   {
     id: 11,
     periodId: 1,
-    day: "2026-07-02",
+    localWorkDate: "2026-07-02",
     start: "2026-07-02T09:00:00Z",
     end: "2026-07-02T10:00:00Z",
+    durationMinutes: 60,
     categoryId: 10,
-    note: "Title",
     description: "Existing description",
-    source: "manual",
+    attestation: "confirmed",
   },
 ];
 
 describe("useSchedulePageEditor", () => {
-  it("passes title and description when saving event edits", () => {
+  it("passes description when saving event edits", () => {
     const createMutate = vi.fn();
     const updateMutate = vi.fn();
 
     const { result } = renderHook(() =>
       useSchedulePageEditor({
         activePeriodId: 1,
-        gapFills,
-        createManualEventMutation: { mutate: createMutate },
-        updateManualEventMutation: { mutate: updateMutate },
-        deleteManualEventMutation: { mutate: vi.fn() },
+        timeEntries,
+        createTimeEntryMutation: { mutate: createMutate },
+        updateTimeEntryMutation: { mutate: updateMutate },
+        deleteTimeEntryMutation: { mutate: vi.fn() },
         excludeEventMutation: { mutate: vi.fn() },
       }),
     );
@@ -57,7 +57,6 @@ describe("useSchedulePageEditor", () => {
     expect(createMutate).toHaveBeenCalledWith(
       expect.objectContaining({
         periodId: 1,
-        note: "New title",
         description: "New description",
       }),
       expect.any(Object),
@@ -65,7 +64,7 @@ describe("useSchedulePageEditor", () => {
 
     act(() => {
       result.current.handleOpenEventEditor({
-        id: "gap-fill-11",
+        id: "time-entry-11",
         day: "2026-07-02",
         startMinutes: 540,
         endMinutes: 600,
@@ -92,7 +91,6 @@ describe("useSchedulePageEditor", () => {
     expect(updateMutate).toHaveBeenCalledWith(
       expect.objectContaining({
         id: 11,
-        note: "Updated title",
         description: "Updated description",
       }),
       expect.any(Object),
@@ -105,23 +103,23 @@ describe("useSchedulePageEditor", () => {
     const { result } = renderHook(() =>
       useSchedulePageEditor({
         activePeriodId: 1,
-        gapFills,
-        createManualEventMutation: { mutate: vi.fn() },
-        updateManualEventMutation: { mutate: updateMutate },
-        deleteManualEventMutation: { mutate: vi.fn() },
+        timeEntries,
+        createTimeEntryMutation: { mutate: vi.fn() },
+        updateTimeEntryMutation: { mutate: updateMutate },
+        deleteTimeEntryMutation: { mutate: vi.fn() },
         excludeEventMutation: { mutate: vi.fn() },
       }),
     );
 
     act(() => {
       result.current.handleCommit({
-        itemId: "gap-fill-11",
+        itemId: "time-entry-11",
         day: "2026-07-02",
         startMinutes: 560,
         endMinutes: 620,
         interaction: "move",
         item: {
-          id: "gap-fill-11",
+          id: "time-entry-11",
           day: "2026-07-02",
           startMinutes: 540,
           endMinutes: 600,
@@ -132,7 +130,6 @@ describe("useSchedulePageEditor", () => {
     expect(updateMutate).toHaveBeenCalledWith(
       expect.objectContaining({
         id: 11,
-        note: "Title",
         description: "Existing description",
       }),
       expect.any(Object),

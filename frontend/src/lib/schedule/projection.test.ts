@@ -45,16 +45,17 @@ describe("schedule projection", () => {
         } as never,
       ],
       eventCategoryOverlays: [],
-      gapFills: [
+      timeEntries: [
         {
           id: 21,
           periodId: 1,
-          day: "2026-06-09",
+          localWorkDate: "2026-06-09",
           start: "2026-06-09T18:00:00Z",
           end: "2026-06-09T19:15:00Z",
+          durationMinutes: 75,
           categoryId: 10,
-          note: "Deep work",
-          source: "manual",
+          description: "Deep work",
+          attestation: "confirmed",
         } as never,
       ],
       gapTimeline: [],
@@ -83,8 +84,8 @@ describe("schedule projection", () => {
       excludable: false,
     });
 
-    const gapFillItem = projected.items.find((item) => item.id === "gap-fill-21");
-    expect(gapFillItem?.metadata).toMatchObject({
+    const timeEntryItem = projected.items.find((item) => item.id === "time-entry-21");
+    expect(timeEntryItem?.metadata).toMatchObject({
       kind: "manual",
       mutable: true,
       excludable: false,
@@ -96,14 +97,14 @@ describe("schedule projection", () => {
       kind: "new_in_gap",
     });
     expect(projected.resettableDays.has("2026-06-09")).toBe(true);
-    expect(projected.gapFillsByItemId.get("gap-fill-21")?.id).toBe(21);
+    expect(projected.timeEntriesByItemId.get("time-entry-21")?.id).toBe(21);
   });
 
-  it("builds resettable days from manual gap fills only", () => {
+  it("builds resettable days from user-created time entries only", () => {
     expect(
       buildResettableDays([
-        { day: "2026-07-01", source: "manual" } as never,
-        { day: "2026-07-02", source: "gap" } as never,
+        { localWorkDate: "2026-07-01" } as never,
+        { localWorkDate: "2026-07-02", method: "gap_fill" } as never,
       ]),
     ).toEqual(new Set(["2026-07-01"]));
   });

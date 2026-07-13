@@ -173,17 +173,18 @@ type ReviewDecision struct {
 	Actions     []ReviewDecisionAction `json:"actions"`
 }
 
-// GapFill is a user entry covering an uncovered interval / manual block.
-type GapFill struct {
-	ID          int64  `json:"id"`
-	PeriodID    int64  `json:"periodId"`
-	Day         string `json:"day"` // YYYY-MM-DD
-	Start       string `json:"start"`
-	End         string `json:"end"`
-	CategoryID  *int64 `json:"categoryId,omitempty"`
-	Note        string `json:"note,omitempty"`
-	Description string `json:"description,omitempty"`
-	Source      string `json:"source"`
+// TimeEntry is a confirmed (or draft) interval on the canonical ledger.
+type TimeEntry struct {
+	ID              int64  `json:"id"`
+	PeriodID        int64  `json:"periodId"`
+	LocalWorkDate   string `json:"localWorkDate"` // YYYY-MM-DD
+	Start           string `json:"start"`         // RFC3339 UTC
+	End             string `json:"end"`           // RFC3339 UTC
+	DurationMinutes int64  `json:"durationMinutes"`
+	CategoryID      *int64 `json:"categoryId,omitempty"`
+	Description     string `json:"description,omitempty"`
+	Attestation     string `json:"attestation"` // draft | confirmed
+	Method          string `json:"method,omitempty"` // e.g. gap_fill when stamped
 }
 
 // ── converters from sqlc rows ─────────────────────────────────────────
@@ -315,23 +316,22 @@ func toReviewItem(r sqlc.ReviewItem) ReviewItem {
 	}
 }
 
-func toGapFill(r sqlc.TimeEntry) GapFill {
-	// Bridge: GapFill API remains until Connect/UI rewire. Source is derived from
-	// optional provenance method; note mirrors description (note column dropped).
-	source := "manual"
-	if r.Method.Valid && r.Method.String == "gap_fill" {
-		source = "gap"
+func toTimeEntry(r sqlc.TimeEntry) TimeEntry {
+	method := ""
+	if r.Method.Valid {
+		method = r.Method.String
 	}
-	return GapFill{
-		ID:          r.ID,
-		PeriodID:    r.PeriodID,
-		Day:         r.LocalWorkDate,
-		Start:       r.StartInstant,
-		End:         r.EndInstant,
-		CategoryID:  nullInt64Ptr(r.CategoryID),
-		Note:        r.Description,
-		Description: r.Description,
-		Source:      source,
+	return TimeEntry{
+		ID:              r.ID,
+		PeriodID:        r.PeriodID,
+		LocalWorkDate:   r.LocalWorkDate,
+		Start:           r.StartInstant,
+		End:             r.EndInstant,
+		DurationMinutes: r.DurationMinutes,
+		CategoryID:      nullInt64Ptr(r.CategoryID),
+		Description:     r.Description,
+		Attestation:     r.Attestation,
+		Method:          method,
 	}
 }
 

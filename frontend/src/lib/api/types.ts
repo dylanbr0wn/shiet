@@ -168,38 +168,38 @@ export interface Event {
   active: boolean;
 }
 
-export interface GapFill {
+export interface TimeEntry {
   id: number;
   periodId: number;
-  day: string;
+  localWorkDate: string;
   start: string;
   end: string;
+  durationMinutes: number;
   categoryId?: number;
-  note?: string;
   description?: string;
-  source: string;
+  attestation: string;
+  method?: string;
 }
 
-export interface ManualEventInput {
+export interface TimeEntryInput {
   periodId: number;
   day: string;
   startMinutes: number;
   endMinutes: number;
   categoryId?: number;
-  note?: string;
   description?: string;
 }
 
-export interface ManualEventUpdateInput extends ManualEventInput {
+export interface TimeEntryUpdateInput extends TimeEntryInput {
   id: number;
 }
 
-export interface ManualEventDeleteInput {
+export interface TimeEntryDeleteInput {
   id: number;
   periodId: number;
 }
 
-export interface ManualEventResult {
+export interface TimeEntryResult {
   periodId: number;
   id: number;
 }

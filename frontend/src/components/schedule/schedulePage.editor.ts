@@ -1,5 +1,5 @@
 import { useMemo, useState, type Dispatch, type SetStateAction } from "react";
-import type { GapFill } from "@/lib/api";
+import type { TimeEntry } from "@/lib/api";
 import type { SchedulerCreateRequest } from "@/lib/scheduler";
 import type {
   AllDayChip,
@@ -8,17 +8,17 @@ import type {
   SchedulePlacement,
 } from "@/lib/schedule";
 import {
-  buildGapFillsByItemId,
+  buildTimeEntriesByItemId,
   buildResettableDays,
-  gapFillItemId,
+  timeEntryItemId,
   isEventItemId,
-  isGapFillItemId,
+  isTimeEntryItemId,
   parseEventItemId,
 } from "@/lib/schedule";
 import type { ScheduleEventEditValues } from "./schedulePage.types";
 
 interface Mutations {
-  createManualEventMutation: {
+  createTimeEntryMutation: {
     mutate: (
       payload: {
         periodId: number;
@@ -26,13 +26,12 @@ interface Mutations {
         startMinutes: number;
         endMinutes: number;
         categoryId?: number;
-        note: string;
         description: string;
       },
       options?: { onSuccess?: () => void },
     ) => void;
   };
-  updateManualEventMutation: {
+  updateTimeEntryMutation: {
     mutate: (
       payload: {
         id: number;
@@ -41,13 +40,12 @@ interface Mutations {
         startMinutes: number;
         endMinutes: number;
         categoryId?: number;
-        note: string;
         description: string;
       },
       options?: { onSuccess?: () => void; onSettled?: () => void },
     ) => void;
   };
-  deleteManualEventMutation: {
+  deleteTimeEntryMutation: {
     mutate: (
       payload: { id: number; periodId: number },
       options?: { onSuccess?: () => void },
@@ -63,28 +61,32 @@ interface Mutations {
 
 interface UseSchedulePageEditorParams extends Mutations {
   activePeriodId: number | undefined;
-  gapFills: GapFill[];
+  timeEntries: TimeEntry[];
 }
 
 function eventIdFromScheduleItemId(itemId: string): number | null {
   return parseEventItemId(itemId);
 }
 
+function editDescription(values: ScheduleEventEditValues): string {
+  return values.description || values.note;
+}
+
 export function useSchedulePageEditor({
   activePeriodId,
-  gapFills,
-  createManualEventMutation,
-  updateManualEventMutation,
-  deleteManualEventMutation,
+  timeEntries,
+  createTimeEntryMutation,
+  updateTimeEntryMutation,
+  deleteTimeEntryMutation,
   excludeEventMutation,
 }: UseSchedulePageEditorParams) {
   const [draftPlacements, setDraftPlacements] = useState<Record<string, SchedulePlacement>>({});
   const [preview, setPreview] = useState<ScheduleChange | null>(null);
   const [editingItemId, setEditingItemId] = useState<string | null>(null);
   const [pendingCreate, setPendingCreate] = useState<SchedulerCreateRequest | null>(null);
-  const gapFillsByItemId = useMemo(
-    () => buildGapFillsByItemId(gapFills),
-    [gapFills],
+  const timeEntriesByItemId = useMemo(
+    () => buildTimeEntriesByItemId(timeEntries),
+    [timeEntries],
   );
 
   const clearForPeriodChange = () => {
@@ -103,9 +105,9 @@ export function useSchedulePageEditor({
   };
 
   const handleCommit = (change: ScheduleChange) => {
-    if (isGapFillItemId(change.itemId)) {
-      const gapFill = gapFillsByItemId.get(change.itemId);
-      if (gapFill) {
+    if (isTimeEntryItemId(change.itemId)) {
+      const timeEntry = timeEntriesByItemId.get(change.itemId);
+      if (timeEntry) {
         setDraftPlacements((current) => ({
           ...current,
           [change.itemId]: {
@@ -114,16 +116,15 @@ export function useSchedulePageEditor({
             endMinutes: change.endMinutes,
           },
         }));
-        updateManualEventMutation.mutate(
+        updateTimeEntryMutation.mutate(
           {
-            id: gapFill.id,
-            periodId: gapFill.periodId,
+            id: timeEntry.id,
+            periodId: timeEntry.periodId,
             day: change.day,
             startMinutes: change.startMinutes,
             endMinutes: change.endMinutes,
-            categoryId: gapFill.categoryId,
-            note: gapFill.note ?? "",
-            description: gapFill.description ?? "",
+            categoryId: timeEntry.categoryId,
+            description: timeEntry.description ?? "",
           },
           {
             onSettled: () => {
@@ -148,7 +149,7 @@ export function useSchedulePageEditor({
   };
 
   const handleOpenEventEditor = (item: ScheduleItem) => {
-    if (!item.metadata?.mutable || !gapFillsByItemId.has(item.id)) {
+    if (!item.metadata?.mutable || !timeEntriesByItemId.has(item.id)) {
       return;
     }
     setPendingCreate(null);
@@ -156,28 +157,27 @@ export function useSchedulePageEditor({
   };
 
   const handleDuplicateEvent = (item: ScheduleItem) => {
-    const gapFill = gapFillsByItemId.get(item.id);
-    if (!gapFill) {
+    const timeEntry = timeEntriesByItemId.get(item.id);
+    if (!timeEntry) {
       return;
     }
-    createManualEventMutation.mutate({
-      periodId: gapFill.periodId,
+    createTimeEntryMutation.mutate({
+      periodId: timeEntry.periodId,
       day: item.day,
       startMinutes: item.startMinutes,
       endMinutes: item.endMinutes,
-      categoryId: gapFill.categoryId,
-      note: gapFill.note ?? item.metadata?.title ?? "",
-      description: gapFill.description ?? "",
+      categoryId: timeEntry.categoryId,
+      description: timeEntry.description ?? item.metadata?.title ?? "",
     });
   };
 
   const handleRemoveEvent = (item: ScheduleItem) => {
-    const gapFill = gapFillsByItemId.get(item.id);
-    if (!gapFill) {
+    const timeEntry = timeEntriesByItemId.get(item.id);
+    if (!timeEntry) {
       return;
     }
-    deleteManualEventMutation.mutate(
-      { id: gapFill.id, periodId: gapFill.periodId },
+    deleteTimeEntryMutation.mutate(
+      { id: timeEntry.id, periodId: timeEntry.periodId },
       {
         onSuccess: () => {
           setEditingItemId((current) => (current === item.id ? null : current));
@@ -208,23 +208,25 @@ export function useSchedulePageEditor({
   };
 
   const handleResetDay = (day: string) => {
-    if (!buildResettableDays(gapFills).has(day)) {
+    if (!buildResettableDays(timeEntries).has(day)) {
       return;
     }
 
-    const manualGapFills = gapFills.filter(
-      (gapFill) => gapFill.day === day && gapFill.source === "manual",
+    const manualTimeEntries = timeEntries.filter(
+      (timeEntry) => timeEntry.localWorkDate === day && !timeEntry.method,
     );
 
-    const deletedItemIds = new Set(manualGapFills.map((gapFill) => gapFillItemId(gapFill.id)));
+    const deletedItemIds = new Set(
+      manualTimeEntries.map((timeEntry) => timeEntryItemId(timeEntry.id)),
+    );
     setEditingItemId((current) =>
       current && deletedItemIds.has(current) ? null : current,
     );
 
-    manualGapFills.forEach((gapFill) => {
-      deleteManualEventMutation.mutate({
-        id: gapFill.id,
-        periodId: gapFill.periodId,
+    manualTimeEntries.forEach((timeEntry) => {
+      deleteTimeEntryMutation.mutate({
+        id: timeEntry.id,
+        periodId: timeEntry.periodId,
       });
     });
   };
@@ -235,16 +237,17 @@ export function useSchedulePageEditor({
   };
 
   const handleSaveEventEdit = (values: ScheduleEventEditValues) => {
+    const description = editDescription(values);
+
     if (pendingCreate && activePeriodId) {
-      createManualEventMutation.mutate(
+      createTimeEntryMutation.mutate(
         {
           periodId: activePeriodId,
           day: values.day,
           startMinutes: values.startMinutes,
           endMinutes: values.endMinutes,
           categoryId: values.categoryId,
-          note: values.note,
-          description: values.description,
+          description,
         },
         { onSuccess: () => setPendingCreate(null) },
       );
@@ -255,8 +258,8 @@ export function useSchedulePageEditor({
       return;
     }
 
-    const gapFill = gapFillsByItemId.get(editingItemId);
-    if (!gapFill) {
+    const timeEntry = timeEntriesByItemId.get(editingItemId);
+    if (!timeEntry) {
       return;
     }
     const itemId = editingItemId;
@@ -270,16 +273,15 @@ export function useSchedulePageEditor({
       },
     }));
 
-    updateManualEventMutation.mutate(
+    updateTimeEntryMutation.mutate(
       {
-        id: gapFill.id,
-        periodId: gapFill.periodId,
+        id: timeEntry.id,
+        periodId: timeEntry.periodId,
         day: values.day,
         startMinutes: values.startMinutes,
         endMinutes: values.endMinutes,
         categoryId: values.categoryId,
-        note: values.note,
-        description: values.description,
+        description,
       },
       {
         onSuccess: () => setEditingItemId(null),

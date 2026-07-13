@@ -4,7 +4,7 @@ import type {
   Event,
   GapEvidenceItem,
   GapSuggestion,
-  GapFill,
+  TimeEntry,
   Period,
   ReviewDecision,
   TzSegment,
@@ -40,7 +40,7 @@ export function parseScheduleViewDayCount(raw: unknown): ScheduleViewDayCount {
 
 export interface EditableScheduleEvent {
   id: string;
-  gapFillId?: number;
+  timeEntryId?: number;
   periodId: number;
   day: string;
   startMinutes: number;
@@ -85,7 +85,7 @@ export interface SchedulePageViewModel {
   backendError: unknown;
   counts: {
     events: number;
-    gapFills: number;
+    timeEntries: number;
     categories: number;
     reviewDecisions: number;
   };
@@ -129,7 +129,7 @@ export interface SchedulePageDataInputs {
   currentPeriod: Period | null;
   categories: Category[];
   events: Event[];
-  gapFills: GapFill[];
+  timeEntries: TimeEntry[];
   gapTimeline: DayTimeline[];
   reviewDecisions: ReviewDecision[];
   tzSegments: TzSegment[];

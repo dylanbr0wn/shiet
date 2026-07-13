@@ -3,7 +3,7 @@ import type {
   DayTimeline,
   Event,
   EventCategoryOverlay,
-  GapFill,
+  TimeEntry,
   Period,
   ReviewDecision,
   TzSegment,
@@ -32,7 +32,7 @@ export interface BuildSchedulePageDerivedArgs {
   categories: Category[];
   events: Event[];
   eventCategoryOverlays: EventCategoryOverlay[];
-  gapFills: GapFill[];
+  timeEntries: TimeEntry[];
   gapTimeline: DayTimeline[];
   reviewDecisions: ReviewDecision[];
   tzSegments: TzSegment[];
@@ -56,7 +56,7 @@ export interface SchedulePageDerivedData {
   items: ScheduleItem[];
   visibleGaps: ScheduleGapOverlay[];
   resettableDays: ReadonlySet<string>;
-  gapFillsByItemId: Map<string, GapFill>;
+  timeEntriesByItemId: Map<string, TimeEntry>;
   totals: Record<string, number>;
   editingEvent: EditableScheduleEvent | null;
 }
@@ -70,7 +70,7 @@ export function buildSchedulePageDerived({
   categories,
   events,
   eventCategoryOverlays,
-  gapFills,
+  timeEntries,
   gapTimeline,
   reviewDecisions,
   tzSegments,
@@ -95,7 +95,7 @@ export function buildSchedulePageDerived({
   const projected = projectSchedulePeriod({
     events,
     eventCategoryOverlays,
-    gapFills,
+    timeEntries,
     gapTimeline,
     reviewDecisions,
     tzSegments,
@@ -108,7 +108,7 @@ export function buildSchedulePageDerived({
     pendingCreate,
     activePeriodId,
     editingItemId,
-    gapFillsByItemId: projected.gapFillsByItemId,
+    timeEntriesByItemId: projected.timeEntriesByItemId,
     items: projected.items,
   });
 
@@ -123,7 +123,7 @@ export function buildSchedulePageDerived({
     items: projected.items,
     visibleGaps: projected.visibleGaps,
     resettableDays: projected.resettableDays,
-    gapFillsByItemId: projected.gapFillsByItemId,
+    timeEntriesByItemId: projected.timeEntriesByItemId,
     totals: calculateTotals(projected.items),
     editingEvent,
   };
@@ -153,13 +153,13 @@ function resolveEditingEvent({
   pendingCreate,
   activePeriodId,
   editingItemId,
-  gapFillsByItemId,
+  timeEntriesByItemId,
   items,
 }: {
   pendingCreate: BuildSchedulePageDerivedArgs["pendingCreate"];
   activePeriodId: number | undefined;
   editingItemId: string | null;
-  gapFillsByItemId: Map<string, GapFill>;
+  timeEntriesByItemId: Map<string, TimeEntry>;
   items: ScheduleItem[];
 }): EditableScheduleEvent | null {
   if (pendingCreate && activePeriodId) {
@@ -180,23 +180,23 @@ function resolveEditingEvent({
     return null;
   }
 
-  const gapFill = gapFillsByItemId.get(editingItemId);
+  const timeEntry = timeEntriesByItemId.get(editingItemId);
   const item = items.find((candidate) => candidate.id === editingItemId);
 
-  if (!gapFill || !item) {
+  if (!timeEntry || !item) {
     return null;
   }
 
   return {
     id: editingItemId,
-    gapFillId: gapFill.id,
-    periodId: gapFill.periodId,
+    timeEntryId: timeEntry.id,
+    periodId: timeEntry.periodId,
     day: item.day,
     startMinutes: item.startMinutes,
     endMinutes: item.endMinutes,
     category: item.metadata?.category ?? "Unassigned",
-    categoryId: gapFill.categoryId,
-    note: gapFill.note ?? "",
-    description: gapFill.description ?? "",
+    categoryId: timeEntry.categoryId,
+    note: timeEntry.description ?? "",
+    description: timeEntry.description ?? "",
   };
 }

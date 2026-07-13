@@ -37,71 +37,85 @@ func (s *ScheduleService) GetEvent(ctx context.Context, req *connect.Request[app
 	return connect.NewResponse(&appv1.GetEventResponse{Event: toProtoEvent(item)}), nil
 }
 
-func (s *ScheduleService) ListGapFills(ctx context.Context, req *connect.Request[appv1.ListGapFillsRequest]) (*connect.Response[appv1.ListGapFillsResponse], error) {
+func (s *ScheduleService) ListTimeEntries(ctx context.Context, req *connect.Request[appv1.ListTimeEntriesRequest]) (*connect.Response[appv1.ListTimeEntriesResponse], error) {
 	if err := requireID(req.Msg.PeriodId, "period_id"); err != nil {
 		return nil, err
 	}
-	items, err := s.service.ListGapFills(ctx, req.Msg.PeriodId)
+	items, err := s.service.ListTimeEntries(ctx, req.Msg.PeriodId)
 	if err != nil {
 		return nil, mapServiceError(err)
 	}
-	out := make([]*appv1.GapFill, len(items))
+	out := make([]*appv1.TimeEntry, len(items))
 	for i := range items {
-		out[i] = toProtoGapFill(items[i])
+		out[i] = toProtoTimeEntry(items[i])
 	}
-	return connect.NewResponse(&appv1.ListGapFillsResponse{GapFills: out}), nil
+	return connect.NewResponse(&appv1.ListTimeEntriesResponse{TimeEntries: out}), nil
 }
 
-func (s *ScheduleService) CreateManualEvent(ctx context.Context, req *connect.Request[appv1.CreateManualEventRequest]) (*connect.Response[appv1.CreateManualEventResponse], error) {
-	input, err := manualEventInput(req.Msg.Input)
-	if err != nil {
-		return nil, err
-	}
-	item, serviceErr := s.service.CreateManualEvent(ctx, input)
-	if serviceErr != nil {
-		return nil, mapServiceError(serviceErr)
-	}
-	return connect.NewResponse(&appv1.CreateManualEventResponse{PeriodId: item.PeriodID, Id: item.ID}), nil
-}
-
-func (s *ScheduleService) CreateGapFill(ctx context.Context, req *connect.Request[appv1.CreateGapFillRequest]) (*connect.Response[appv1.CreateGapFillResponse], error) {
-	input, err := manualEventInput(req.Msg.Input)
-	if err != nil {
-		return nil, err
-	}
-	item, serviceErr := s.service.CreateGapFill(ctx, input)
-	if serviceErr != nil {
-		return nil, mapServiceError(serviceErr)
-	}
-	return connect.NewResponse(&appv1.CreateGapFillResponse{PeriodId: item.PeriodID, Id: item.ID}), nil
-}
-
-func (s *ScheduleService) UpdateManualEvent(ctx context.Context, req *connect.Request[appv1.UpdateManualEventRequest]) (*connect.Response[appv1.UpdateManualEventResponse], error) {
-	if err := requireID(req.Msg.Id, "id"); err != nil {
-		return nil, err
-	}
-	input, err := manualEventInput(req.Msg.Input)
-	if err != nil {
-		return nil, err
-	}
-	item, serviceErr := s.service.UpdateManualEvent(ctx, service.ManualEventUpdateInput{ID: req.Msg.Id, ManualEventInput: input})
-	if serviceErr != nil {
-		return nil, mapServiceError(serviceErr)
-	}
-	return connect.NewResponse(&appv1.UpdateManualEventResponse{PeriodId: item.PeriodID, Id: item.ID}), nil
-}
-
-func (s *ScheduleService) DeleteManualEvent(ctx context.Context, req *connect.Request[appv1.DeleteManualEventRequest]) (*connect.Response[appv1.DeleteManualEventResponse], error) {
+func (s *ScheduleService) GetTimeEntry(ctx context.Context, req *connect.Request[appv1.GetTimeEntryRequest]) (*connect.Response[appv1.GetTimeEntryResponse], error) {
 	if err := requireID(req.Msg.Id, "id"); err != nil {
 		return nil, err
 	}
 	if err := requireID(req.Msg.PeriodId, "period_id"); err != nil {
 		return nil, err
 	}
-	if err := s.service.DeleteManualEvent(ctx, service.ManualEventDeleteInput{ID: req.Msg.Id, PeriodID: req.Msg.PeriodId}); err != nil {
+	item, err := s.service.GetTimeEntry(ctx, req.Msg.Id, req.Msg.PeriodId)
+	if err != nil {
 		return nil, mapServiceError(err)
 	}
-	return connect.NewResponse(&appv1.DeleteManualEventResponse{PeriodId: req.Msg.PeriodId, Id: req.Msg.Id}), nil
+	return connect.NewResponse(&appv1.GetTimeEntryResponse{TimeEntry: toProtoTimeEntry(item)}), nil
+}
+
+func (s *ScheduleService) CreateTimeEntry(ctx context.Context, req *connect.Request[appv1.CreateTimeEntryRequest]) (*connect.Response[appv1.CreateTimeEntryResponse], error) {
+	input, err := timeEntryInput(req.Msg.Input)
+	if err != nil {
+		return nil, err
+	}
+	item, serviceErr := s.service.CreateTimeEntry(ctx, input)
+	if serviceErr != nil {
+		return nil, mapServiceError(serviceErr)
+	}
+	return connect.NewResponse(&appv1.CreateTimeEntryResponse{PeriodId: item.PeriodID, Id: item.ID}), nil
+}
+
+func (s *ScheduleService) CreateGapTimeEntry(ctx context.Context, req *connect.Request[appv1.CreateGapTimeEntryRequest]) (*connect.Response[appv1.CreateGapTimeEntryResponse], error) {
+	input, err := timeEntryInput(req.Msg.Input)
+	if err != nil {
+		return nil, err
+	}
+	item, serviceErr := s.service.CreateGapTimeEntry(ctx, input)
+	if serviceErr != nil {
+		return nil, mapServiceError(serviceErr)
+	}
+	return connect.NewResponse(&appv1.CreateGapTimeEntryResponse{PeriodId: item.PeriodID, Id: item.ID}), nil
+}
+
+func (s *ScheduleService) UpdateTimeEntry(ctx context.Context, req *connect.Request[appv1.UpdateTimeEntryRequest]) (*connect.Response[appv1.UpdateTimeEntryResponse], error) {
+	if err := requireID(req.Msg.Id, "id"); err != nil {
+		return nil, err
+	}
+	input, err := timeEntryInput(req.Msg.Input)
+	if err != nil {
+		return nil, err
+	}
+	item, serviceErr := s.service.UpdateTimeEntry(ctx, service.TimeEntryUpdateInput{ID: req.Msg.Id, TimeEntryInput: input})
+	if serviceErr != nil {
+		return nil, mapServiceError(serviceErr)
+	}
+	return connect.NewResponse(&appv1.UpdateTimeEntryResponse{PeriodId: item.PeriodID, Id: item.ID}), nil
+}
+
+func (s *ScheduleService) DeleteTimeEntry(ctx context.Context, req *connect.Request[appv1.DeleteTimeEntryRequest]) (*connect.Response[appv1.DeleteTimeEntryResponse], error) {
+	if err := requireID(req.Msg.Id, "id"); err != nil {
+		return nil, err
+	}
+	if err := requireID(req.Msg.PeriodId, "period_id"); err != nil {
+		return nil, err
+	}
+	if err := s.service.DeleteTimeEntry(ctx, service.TimeEntryDeleteInput{ID: req.Msg.Id, PeriodID: req.Msg.PeriodId}); err != nil {
+		return nil, mapServiceError(err)
+	}
+	return connect.NewResponse(&appv1.DeleteTimeEntryResponse{PeriodId: req.Msg.PeriodId, Id: req.Msg.Id}), nil
 }
 
 func (s *ScheduleService) ListReviewDecisions(ctx context.Context, req *connect.Request[appv1.ListReviewDecisionsRequest]) (*connect.Response[appv1.ListReviewDecisionsResponse], error) {
@@ -244,20 +258,27 @@ func (s *ScheduleService) SuggestGapFill(ctx context.Context, req *connect.Reque
 	return connect.NewResponse(&appv1.SuggestGapFillResponse{Category: result.Category, Description: result.Description, EvidenceCount: int32(result.EvidenceCount)}), nil
 }
 
-func manualEventInput(input *appv1.ManualEventInput) (service.ManualEventInput, error) {
+func timeEntryInput(input *appv1.TimeEntryInput) (service.TimeEntryInput, error) {
 	if input == nil {
-		return service.ManualEventInput{}, invalidArgument("input is required")
+		return service.TimeEntryInput{}, invalidArgument("input is required")
 	}
 	if err := requireID(input.PeriodId, "period_id"); err != nil {
-		return service.ManualEventInput{}, err
+		return service.TimeEntryInput{}, err
 	}
 	if input.Day == "" {
-		return service.ManualEventInput{}, invalidArgument("day is required")
+		return service.TimeEntryInput{}, invalidArgument("day is required")
 	}
 	if input.StartMinutes < 0 || input.EndMinutes > 24*60 || input.StartMinutes >= input.EndMinutes {
-		return service.ManualEventInput{}, invalidArgument("manual event minute range is invalid")
+		return service.TimeEntryInput{}, invalidArgument("time entry minute range is invalid")
 	}
-	return service.ManualEventInput{PeriodID: input.PeriodId, Day: input.Day, StartMinutes: int(input.StartMinutes), EndMinutes: int(input.EndMinutes), CategoryID: input.CategoryId, Note: input.Note, Description: input.Description}, nil
+	return service.TimeEntryInput{
+		PeriodID:     input.PeriodId,
+		Day:          input.Day,
+		StartMinutes: int(input.StartMinutes),
+		EndMinutes:   int(input.EndMinutes),
+		CategoryID:   input.CategoryId,
+		Description:  input.Description,
+	}, nil
 }
 
 func toProtoEvent(item service.Event) *appv1.Event {
@@ -275,8 +296,19 @@ func toProtoEvent(item service.Event) *appv1.Event {
 	return out
 }
 
-func toProtoGapFill(item service.GapFill) *appv1.GapFill {
-	return &appv1.GapFill{Id: item.ID, PeriodId: item.PeriodID, Day: item.Day, Start: item.Start, End: item.End, CategoryId: item.CategoryID, Note: item.Note, Description: item.Description, Source: item.Source}
+func toProtoTimeEntry(item service.TimeEntry) *appv1.TimeEntry {
+	return &appv1.TimeEntry{
+		Id:              item.ID,
+		PeriodId:        item.PeriodID,
+		LocalWorkDate:   item.LocalWorkDate,
+		Start:           item.Start,
+		End:             item.End,
+		DurationMinutes: int32(item.DurationMinutes),
+		CategoryId:      item.CategoryID,
+		Description:     item.Description,
+		Attestation:     item.Attestation,
+		Method:          item.Method,
+	}
 }
 
 func toProtoDayTimeline(item service.DayTimeline) *appv1.DayTimeline {

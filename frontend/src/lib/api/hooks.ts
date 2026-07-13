@@ -6,12 +6,12 @@ import {
   connectIntegration,
   connectSlack,
   connectBitbucket,
-  createGapFill,
+  createGapTimeEntry,
   createCategory,
-  createManualEvent,
+  createTimeEntry,
   deleteCategory,
   archiveCategory,
-  deleteManualEvent,
+  deleteTimeEntry,
   disconnectGitHub,
   disconnectIntegration,
   disconnectSlack,
@@ -27,7 +27,7 @@ import {
   listCategories,
   listEventCategoryOverlays,
   listEvents,
-  listGapFills,
+  listTimeEntries,
   listGitHubRepos,
   listSlackChannels,
   listBitbucketWorkspaces,
@@ -63,7 +63,7 @@ import {
   suggestGapFill,
   syncPeriod,
   updateCategory,
-  updateManualEvent,
+  updateTimeEntry,
   validateAIConfig,
 } from "./shietService";
 import type { TimeWindow } from "./types";
@@ -97,8 +97,8 @@ export const shietQueryKeys = {
     [...shietQueryKeys.period(periodId), "events"] as const,
   periodEventCategoryOverlays: (periodId: number) =>
     [...shietQueryKeys.period(periodId), "eventCategoryOverlays"] as const,
-  periodGapFills: (periodId: number) =>
-    [...shietQueryKeys.period(periodId), "gapFills"] as const,
+  periodTimeEntries: (periodId: number) =>
+    [...shietQueryKeys.period(periodId), "timeEntries"] as const,
   periodReviewDecisions: (periodId: number) =>
     [...shietQueryKeys.period(periodId), "reviewDecisions"] as const,
   periodTzSegments: (periodId: number) =>
@@ -333,24 +333,24 @@ export function useEvents(periodId: number | null | undefined) {
   });
 }
 
-export function useGapFills(periodId: number | null | undefined) {
+export function useTimeEntries(periodId: number | null | undefined) {
   return useQuery({
     enabled: typeof periodId === "number",
-    queryKey: shietQueryKeys.periodGapFills(periodId ?? 0),
-    queryFn: () => listGapFills(periodId as number),
+    queryKey: shietQueryKeys.periodTimeEntries(periodId ?? 0),
+    queryFn: () => listTimeEntries(periodId as number),
   });
 }
 
-export function useCreateManualEvent() {
+export function useCreateTimeEntry() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: createManualEvent,
-    onSuccess: (gapFill, input) => {
-      const periodId = gapFill.periodId || input.periodId;
+    mutationFn: createTimeEntry,
+    onSuccess: (timeEntry, input) => {
+      const periodId = timeEntry.periodId || input.periodId;
 
       void queryClient.invalidateQueries({
-        queryKey: shietQueryKeys.periodGapFills(periodId),
+        queryKey: shietQueryKeys.periodTimeEntries(periodId),
       });
       void queryClient.invalidateQueries({
         queryKey: shietQueryKeys.gapTimeline(periodId),
@@ -359,16 +359,16 @@ export function useCreateManualEvent() {
   });
 }
 
-export function useCreateGapFill() {
+export function useCreateGapTimeEntry() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: createGapFill,
-    onSuccess: (gapFill, input) => {
-      const periodId = gapFill.periodId || input.periodId;
+    mutationFn: createGapTimeEntry,
+    onSuccess: (timeEntry, input) => {
+      const periodId = timeEntry.periodId || input.periodId;
 
       void queryClient.invalidateQueries({
-        queryKey: shietQueryKeys.periodGapFills(periodId),
+        queryKey: shietQueryKeys.periodTimeEntries(periodId),
       });
       void queryClient.invalidateQueries({
         queryKey: shietQueryKeys.gapTimeline(periodId),
@@ -403,16 +403,16 @@ export function useAIConfigured() {
   };
 }
 
-export function useUpdateManualEvent() {
+export function useUpdateTimeEntry() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: updateManualEvent,
-    onSuccess: (gapFill, input) => {
-      const periodId = gapFill.periodId || input.periodId;
+    mutationFn: updateTimeEntry,
+    onSuccess: (timeEntry, input) => {
+      const periodId = timeEntry.periodId || input.periodId;
 
       void queryClient.invalidateQueries({
-        queryKey: shietQueryKeys.periodGapFills(periodId),
+        queryKey: shietQueryKeys.periodTimeEntries(periodId),
       });
       void queryClient.invalidateQueries({
         queryKey: shietQueryKeys.gapTimeline(periodId),
@@ -421,16 +421,16 @@ export function useUpdateManualEvent() {
   });
 }
 
-export function useDeleteManualEvent() {
+export function useDeleteTimeEntry() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: deleteManualEvent,
+    mutationFn: deleteTimeEntry,
     onSuccess: (result, input) => {
       const periodId = result.periodId || input.periodId;
 
       void queryClient.invalidateQueries({
-        queryKey: shietQueryKeys.periodGapFills(periodId),
+        queryKey: shietQueryKeys.periodTimeEntries(periodId),
       });
       void queryClient.invalidateQueries({
         queryKey: shietQueryKeys.gapTimeline(periodId),
@@ -461,7 +461,7 @@ export function useResolveReviewDecision() {
         queryKey: shietQueryKeys.periodEvents(periodId),
       });
       void queryClient.invalidateQueries({
-        queryKey: shietQueryKeys.periodGapFills(periodId),
+        queryKey: shietQueryKeys.periodTimeEntries(periodId),
       });
       void queryClient.invalidateQueries({
         queryKey: shietQueryKeys.gapTimeline(periodId),

@@ -10,7 +10,6 @@ import type {
   Event,
   EventCategoryOverlay,
   ExcludeEventInput,
-  GapFill,
   GapEvidenceItem,
   GitHubRepo,
   BitbucketRepo,
@@ -20,9 +19,10 @@ import type {
   IntegrationConnection,
   IntegrationProvider,
   ConnectIntegrationInput,
-  ManualEventDeleteInput,
-  ManualEventInput,
-  ManualEventUpdateInput,
+  TimeEntry,
+  TimeEntryDeleteInput,
+  TimeEntryInput,
+  TimeEntryUpdateInput,
   Period,
   PeriodExportModel,
   ReviewDecision,
@@ -49,12 +49,12 @@ import {
   connectIntegrationRPC,
   createCategoryRPC,
   createExportTemplateRPC,
-  createGapFillRPC,
-  createManualEventRPC,
+  createGapTimeEntryRPC,
+  createTimeEntryRPC,
   deleteCategoryRPC,
   archiveCategoryRPC,
   deleteExportTemplateRPC,
-  deleteManualEventRPC,
+  deleteTimeEntryRPC,
   disconnectIntegrationRPC,
   duplicateExportTemplateRPC,
   excludeEventRPC,
@@ -69,7 +69,7 @@ import {
   listEventsRPC,
   listExportFieldCatalogRPC,
   listExportTemplatesRPC,
-  listGapFillsRPC,
+  listTimeEntriesRPC,
   listGapEvidenceRPC,
   listGitHubReposRPC,
   listBitbucketWorkspacesRPC,
@@ -97,7 +97,7 @@ import {
   syncPeriodRPC,
   updateCategoryRPC,
   updateExportTemplateRPC,
-  updateManualEventRPC,
+  updateTimeEntryRPC,
 } from "./applicationRpc";
 
 interface ShietApp {
@@ -255,24 +255,24 @@ export function getEvent(id: number) {
   return readFromPortableBackend<Event | null>(null, () => getEventRPC(id));
 }
 
-export function listGapFills(periodId: number) {
-  return readFromPortableBackend<GapFill[]>([], () => listGapFillsRPC(periodId));
+export function listTimeEntries(periodId: number) {
+  return readFromPortableBackend<TimeEntry[]>([], () => listTimeEntriesRPC(periodId));
 }
 
-export function createGapFill(input: ManualEventInput) {
-  return writeToPortableBackend(() => createGapFillRPC(input));
+export function createGapTimeEntry(input: TimeEntryInput) {
+  return writeToPortableBackend(() => createGapTimeEntryRPC(input));
 }
 
-export function createManualEvent(input: ManualEventInput) {
-  return writeToPortableBackend(() => createManualEventRPC(input));
+export function createTimeEntry(input: TimeEntryInput) {
+  return writeToPortableBackend(() => createTimeEntryRPC(input));
 }
 
-export function updateManualEvent(input: ManualEventUpdateInput) {
-  return writeToPortableBackend(() => updateManualEventRPC(input));
+export function updateTimeEntry(input: TimeEntryUpdateInput) {
+  return writeToPortableBackend(() => updateTimeEntryRPC(input));
 }
 
-export function deleteManualEvent(input: ManualEventDeleteInput) {
-  return writeToPortableBackend(() => deleteManualEventRPC(input));
+export function deleteTimeEntry(input: TimeEntryDeleteInput) {
+  return writeToPortableBackend(() => deleteTimeEntryRPC(input));
 }
 
 export function listReviewDecisions(periodId: number) {

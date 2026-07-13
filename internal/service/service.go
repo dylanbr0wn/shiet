@@ -336,18 +336,26 @@ func (s *Service) GetEvent(ctx context.Context, id int64) (Event, error) {
 	return toEvent(r), nil
 }
 
-// ── gap fills ─────────────────────────────────────────────────────────
+// ── time entries ──────────────────────────────────────────────────────
 
-func (s *Service) ListGapFills(ctx context.Context, periodID int64) ([]GapFill, error) {
+func (s *Service) ListTimeEntries(ctx context.Context, periodID int64) ([]TimeEntry, error) {
 	rows, err := s.q.ListTimeEntriesForPeriod(ctx, periodID)
 	if err != nil {
-		return nil, mapErr("list gap fills", err)
+		return nil, mapErr("list time entries", err)
 	}
-	out := make([]GapFill, len(rows))
+	out := make([]TimeEntry, len(rows))
 	for i, r := range rows {
-		out[i] = toGapFill(r)
+		out[i] = toTimeEntry(r)
 	}
 	return out, nil
+}
+
+func (s *Service) GetTimeEntry(ctx context.Context, id, periodID int64) (TimeEntry, error) {
+	row, err := s.q.GetTimeEntry(ctx, sqlc.GetTimeEntryParams{ID: id, PeriodID: periodID})
+	if err != nil {
+		return TimeEntry{}, mapErr("get time entry", err)
+	}
+	return toTimeEntry(row), nil
 }
 
 // ── review queue ──────────────────────────────────────────────────────

@@ -17,7 +17,7 @@ import {
   type DayTimeline as WireDayTimeline,
   type Event as WireEvent,
   type ExportTemplate as WireExportTemplate,
-  type GapFill as WireGapFill,
+  type TimeEntry as WireTimeEntry,
   type GapEvidenceItem as WireGapEvidenceItem,
   type GitHubRepo as WireGitHubRepo,
   type BitbucketRepo as WireBitbucketRepo,
@@ -40,7 +40,6 @@ import type {
   ExcludeEventResult,
   ExportFieldInfo,
   ExportTemplate,
-  GapFill,
   GapEvidenceItem,
   GapSuggestion,
   GitHubRepo,
@@ -48,10 +47,11 @@ import type {
   IntegrationConnection,
   IntegrationKind,
   IntegrationProvider,
-  ManualEventDeleteInput,
-  ManualEventInput,
-  ManualEventResult,
-  ManualEventUpdateInput,
+  TimeEntry,
+  TimeEntryDeleteInput,
+  TimeEntryInput,
+  TimeEntryResult,
+  TimeEntryUpdateInput,
   PeriodExportRender,
   PeriodExportModel,
   PreviewExportInput,
@@ -162,32 +162,32 @@ export async function getEventRPC(id: number) {
   if (!response.event) throw new Error("get event response is missing event");
   return mapEvent(response.event);
 }
-export async function listGapFillsRPC(periodId: number) {
-  return (await scheduleClient().listGapFills({ periodId: bigint(periodId) })).gapFills.map(mapGapFill);
+export async function listTimeEntriesRPC(periodId: number) {
+  return (await scheduleClient().listTimeEntries({ periodId: bigint(periodId) })).timeEntries.map(mapTimeEntry);
 }
-function manualInput(input: ManualEventInput) {
+function timeEntryInput(input: TimeEntryInput) {
   return {
     periodId: bigint(input.periodId), day: input.day,
     startMinutes: input.startMinutes, endMinutes: input.endMinutes,
     ...(input.categoryId == null ? {} : { categoryId: bigint(input.categoryId) }),
-    note: input.note ?? "", description: input.description ?? "",
+    description: input.description ?? "",
   };
 }
-export async function createManualEventRPC(input: ManualEventInput): Promise<ManualEventResult> {
-  const out = await scheduleClient().createManualEvent({ input: manualInput(input) });
-  return { periodId: safeInt(out.periodId, "period id"), id: safeInt(out.id, "manual event id") };
+export async function createTimeEntryRPC(input: TimeEntryInput): Promise<TimeEntryResult> {
+  const out = await scheduleClient().createTimeEntry({ input: timeEntryInput(input) });
+  return { periodId: safeInt(out.periodId, "period id"), id: safeInt(out.id, "time entry id") };
 }
-export async function createGapFillRPC(input: ManualEventInput): Promise<ManualEventResult> {
-  const out = await scheduleClient().createGapFill({ input: manualInput(input) });
-  return { periodId: safeInt(out.periodId, "period id"), id: safeInt(out.id, "gap fill id") };
+export async function createGapTimeEntryRPC(input: TimeEntryInput): Promise<TimeEntryResult> {
+  const out = await scheduleClient().createGapTimeEntry({ input: timeEntryInput(input) });
+  return { periodId: safeInt(out.periodId, "period id"), id: safeInt(out.id, "time entry id") };
 }
-export async function updateManualEventRPC(input: ManualEventUpdateInput): Promise<ManualEventResult> {
-  const out = await scheduleClient().updateManualEvent({ id: bigint(input.id), input: manualInput(input) });
-  return { periodId: safeInt(out.periodId, "period id"), id: safeInt(out.id, "manual event id") };
+export async function updateTimeEntryRPC(input: TimeEntryUpdateInput): Promise<TimeEntryResult> {
+  const out = await scheduleClient().updateTimeEntry({ id: bigint(input.id), input: timeEntryInput(input) });
+  return { periodId: safeInt(out.periodId, "period id"), id: safeInt(out.id, "time entry id") };
 }
-export async function deleteManualEventRPC(input: ManualEventDeleteInput): Promise<ManualEventResult> {
-  const out = await scheduleClient().deleteManualEvent({ id: bigint(input.id), periodId: bigint(input.periodId) });
-  return { periodId: safeInt(out.periodId, "period id"), id: safeInt(out.id, "manual event id") };
+export async function deleteTimeEntryRPC(input: TimeEntryDeleteInput): Promise<TimeEntryResult> {
+  const out = await scheduleClient().deleteTimeEntry({ id: bigint(input.id), periodId: bigint(input.periodId) });
+  return { periodId: safeInt(out.periodId, "period id"), id: safeInt(out.id, "time entry id") };
 }
 export async function listReviewDecisionsRPC(periodId: number) {
   return (await scheduleClient().listReviewDecisions({ periodId: bigint(periodId) })).decisions.map(mapReviewDecision);
@@ -315,8 +315,19 @@ function mapEvent(item: WireEvent): Event {
   return { id: safeInt(item.id, "event id"), periodId: safeInt(item.periodId, "period id"), calendarId: safeInt(item.calendarId, "calendar id"), provider: item.provider, externalId: item.externalId, title: item.title, allDay: item.allDay, active: item.active,
     ...(item.instanceId ? { instanceId: item.instanceId } : {}), ...(item.recurringEventId ? { recurringEventId: item.recurringEventId } : {}), ...(item.icalUid ? { icalUid: item.icalUid } : {}), ...(item.description ? { description: item.description } : {}), ...(item.location ? { location: item.location } : {}), ...(item.organizer ? { organizer: item.organizer } : {}), ...(item.start ? { start: iso(item.start, "event start") } : {}), ...(item.end ? { end: iso(item.end, "event end") } : {}), ...(item.startDate ? { startDate: item.startDate } : {}), ...(item.endDate ? { endDate: item.endDate } : {}), ...(item.originalTz ? { originalTz: item.originalTz } : {}) };
 }
-function mapGapFill(item: WireGapFill): GapFill {
-  return { id: safeInt(item.id, "gap fill id"), periodId: safeInt(item.periodId, "period id"), day: item.day, start: item.start, end: item.end, source: item.source, ...(item.categoryId == null ? {} : { categoryId: safeInt(item.categoryId, "category id") }), ...(item.note ? { note: item.note } : {}), ...(item.description ? { description: item.description } : {}) };
+function mapTimeEntry(item: WireTimeEntry): TimeEntry {
+  return {
+    id: safeInt(item.id, "time entry id"),
+    periodId: safeInt(item.periodId, "period id"),
+    localWorkDate: item.localWorkDate,
+    start: item.start,
+    end: item.end,
+    durationMinutes: item.durationMinutes,
+    attestation: item.attestation,
+    ...(item.categoryId == null ? {} : { categoryId: safeInt(item.categoryId, "category id") }),
+    ...(item.description ? { description: item.description } : {}),
+    ...(item.method ? { method: item.method } : {}),
+  };
 }
 function mapGapEvidenceItem(item: WireGapEvidenceItem): GapEvidenceItem {
   return {

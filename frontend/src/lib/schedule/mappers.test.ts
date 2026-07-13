@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type {
   Category,
   Event as ShietEvent,
-  GapFill,
+  TimeEntry,
   TzSegment,
 } from "@/lib/api";
 import {
@@ -10,7 +10,7 @@ import {
   buildEventCategoryOverlayMap,
   eventToSchedulerItem,
   expandAllDayEventDays,
-  gapFillToSchedulerItem,
+  timeEntryToSchedulerItem,
   gapIntervalToOverlay,
   periodContainsDate,
 } from "./mappers";
@@ -292,22 +292,23 @@ describe("schedule mappers", () => {
     });
   });
 
-  it("maps gap fills with category names and timezone-local minutes", () => {
-    const gapFill: GapFill = {
+  it("maps time entries with category names and timezone-local minutes", () => {
+    const timeEntry: TimeEntry = {
       id: 21,
       periodId: 1,
-      day: "2026-06-09",
+      localWorkDate: "2026-06-09",
       start: "2026-06-09T18:00:00Z",
       end: "2026-06-09T19:15:00Z",
+      durationMinutes: 75,
       categoryId: 5,
-      note: "",
-      source: "manual",
+      description: "",
+      attestation: "confirmed",
     };
 
     expect(
-      gapFillToSchedulerItem(gapFill, categoriesById, tzSegments),
+      timeEntryToSchedulerItem(timeEntry, categoriesById, tzSegments),
     ).toMatchObject({
-      id: "gap-fill-21",
+      id: "time-entry-21",
       day: "2026-06-09",
       startMinutes: 11 * 60,
       endMinutes: 12 * 60 + 15,
@@ -323,20 +324,22 @@ describe("schedule mappers", () => {
     });
   });
 
-  it("maps ai-confirmed gap fills with the gap kind", () => {
-    const gapFill: GapFill = {
+  it("maps gap_fill time entries with the gap kind", () => {
+    const timeEntry: TimeEntry = {
       id: 22,
       periodId: 1,
-      day: "2026-06-09",
+      localWorkDate: "2026-06-09",
       start: "2026-06-09T18:00:00Z",
       end: "2026-06-09T19:15:00Z",
+      durationMinutes: 75,
       categoryId: 5,
-      note: "Feature implementation",
-      source: "gap",
+      description: "Feature implementation",
+      attestation: "confirmed",
+      method: "gap_fill",
     };
 
     expect(
-      gapFillToSchedulerItem(gapFill, categoriesById, tzSegments),
+      timeEntryToSchedulerItem(timeEntry, categoriesById, tzSegments),
     ).toMatchObject({
       metadata: {
         kind: "gap",

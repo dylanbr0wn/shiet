@@ -11,16 +11,16 @@ import type {
   DayTimeline,
   Event,
   EventCategoryOverlay,
-  GapFill,
+  TimeEntry,
   ReviewDecision,
   TzSegment,
 } from "@/lib/api";
-import { buildGapFillsByItemId, eventItemId, gapFillItemId } from "./ids";
+import { buildTimeEntriesByItemId, eventItemId, timeEntryItemId } from "./ids";
 import {
   buildAllDayChipsByDay,
   buildEventCategoryOverlayMap,
   eventToSchedulerItem,
-  gapFillToSchedulerItem,
+  timeEntryToSchedulerItem,
   gapTimelineToOverlays,
   resolveEventCategoryId,
   type EventReviewState,
@@ -35,7 +35,7 @@ import type {
 export interface ProjectSchedulePeriodArgs {
   events: Event[];
   eventCategoryOverlays: EventCategoryOverlay[];
-  gapFills: GapFill[];
+  timeEntries: TimeEntry[];
   gapTimeline: DayTimeline[];
   reviewDecisions: ReviewDecision[];
   tzSegments: TzSegment[];
@@ -50,7 +50,7 @@ export interface ProjectedSchedulePeriod {
   allDayChipsByDay: Map<string, AllDayChip[]>;
   visibleGaps: ScheduleGapOverlay[];
   resettableDays: ReadonlySet<string>;
-  gapFillsByItemId: Map<string, GapFill>;
+  timeEntriesByItemId: Map<string, TimeEntry>;
   reviewDecisionsByEventId: Map<number, EventReviewState>;
 }
 
@@ -67,18 +67,18 @@ export function buildReviewStateByEventId(
   );
 }
 
-export function buildResettableDays(gapFills: GapFill[]): ReadonlySet<string> {
+export function buildResettableDays(timeEntries: TimeEntry[]): ReadonlySet<string> {
   return new Set(
-    gapFills
-      .filter((gapFill) => gapFill.source === "manual")
-      .map((gapFill) => gapFill.day),
+    timeEntries
+      .filter((timeEntry) => !timeEntry.method)
+      .map((timeEntry) => timeEntry.localWorkDate),
   );
 }
 
 export function projectSchedulePeriod({
   events,
   eventCategoryOverlays,
-  gapFills,
+  timeEntries,
   gapTimeline,
   reviewDecisions,
   tzSegments,
@@ -88,7 +88,7 @@ export function projectSchedulePeriod({
 }: ProjectSchedulePeriodArgs): ProjectedSchedulePeriod {
   const categoriesById = new Map(categories.map((category) => [category.id, category]));
   const overlaysByKey = buildEventCategoryOverlayMap(eventCategoryOverlays);
-  const gapFillsByItemId = buildGapFillsByItemId(gapFills);
+  const timeEntriesByItemId = buildTimeEntriesByItemId(timeEntries);
   const reviewDecisionsByEventId = buildReviewStateByEventId(reviewDecisions);
 
   const allDayChipsByDay = buildAllDayChipsByDay(
@@ -112,20 +112,20 @@ export function projectSchedulePeriod({
         ),
       )
       .filter((item): item is ScheduleItem => item !== null),
-    ...gapFills
-      .map((gapFill) =>
-        gapFillToSchedulerItem(
-          gapFill,
+    ...timeEntries
+      .map((timeEntry) =>
+        timeEntryToSchedulerItem(
+          timeEntry,
           categoriesById,
           tzSegments,
-          draftPlacements[gapFillItemId(gapFill.id)],
+          draftPlacements[timeEntryItemId(timeEntry.id)],
         ),
       )
       .filter((item): item is ScheduleItem => item !== null),
   ];
 
   const visibleGaps = gapTimelineToOverlays(gapTimeline, visibleDays, tzSegments);
-  const resettableDays = buildResettableDays(gapFills);
+  const resettableDays = buildResettableDays(timeEntries);
 
   return {
     categoriesById,
@@ -133,7 +133,7 @@ export function projectSchedulePeriod({
     allDayChipsByDay,
     visibleGaps,
     resettableDays,
-    gapFillsByItemId,
+    timeEntriesByItemId,
     reviewDecisionsByEventId,
   };
 }
