@@ -24,6 +24,19 @@ export type ScheduleViewDayCount = 1 | 7 | 14;
 
 export const SCHEDULE_VIEW_DAY_OPTIONS: ScheduleViewDayCount[] = [1, 7, 14];
 
+export const SCHEDULE_VIEW_DAY_COUNT_KEY = "schedule.viewDayCount";
+
+export function parseScheduleViewDayCount(raw: unknown): ScheduleViewDayCount {
+  if (
+    typeof raw === "number" &&
+    SCHEDULE_VIEW_DAY_OPTIONS.includes(raw as ScheduleViewDayCount)
+  ) {
+    return raw as ScheduleViewDayCount;
+  }
+
+  return 7;
+}
+
 export interface EditableScheduleEvent {
   id: string;
   gapFillId?: number;

@@ -4,6 +4,11 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useSchedulePage } from "./useSchedulePage";
 
+const mockViewDayCountState = vi.hoisted(() => ({
+  value: 7,
+  setValue: vi.fn(),
+}));
+
 const mockState = vi.hoisted(() => {
   const createMutate = vi.fn();
   const createGapFillMutate = vi.fn();
@@ -67,6 +72,16 @@ const mockState = vi.hoisted(() => {
     excludeMutate,
   };
 });
+
+vi.mock("../settings/useJsonSetting", () => ({
+  useJsonSetting: () => ({
+    value: mockViewDayCountState.value,
+    setValue: mockViewDayCountState.setValue,
+    isLoading: false,
+    isSaving: false,
+    error: null,
+  }),
+}));
 
 vi.mock("@/lib/schedule", async () => {
   const actual = await vi.importActual<typeof import("@/lib/schedule")>("@/lib/schedule");
@@ -136,6 +151,8 @@ vi.mock("@/lib/api", () => ({
 
 describe("useSchedulePage", () => {
   beforeEach(() => {
+    mockViewDayCountState.value = 7;
+    mockViewDayCountState.setValue.mockReset();
     mockState.createMutate.mockReset();
     mockState.createGapFillMutate.mockReset();
     mockState.suggestMutate.mockReset();
@@ -143,6 +160,35 @@ describe("useSchedulePage", () => {
     mockState.deleteMutate.mockReset();
     mockState.excludeMutate.mockReset();
     mockState.currentPeriod = { id: 1, startDate: "2026-07-01", endDate: "2026-07-14" };
+  });
+
+  it("loads persisted view day count from settings", async () => {
+    mockViewDayCountState.value = 14;
+
+    const { result } = renderHook(() => useSchedulePage());
+    await waitFor(() => expect(result.current.selectedPeriodId).toBe(1));
+
+    expect(result.current.viewDayCount).toBe(14);
+  });
+
+  it("persists view day count when toggled", async () => {
+    const { result } = renderHook(() => useSchedulePage());
+    await waitFor(() => expect(result.current.selectedPeriodId).toBe(1));
+
+    act(() => {
+      result.current.setViewDayCount(1);
+    });
+
+    expect(mockViewDayCountState.setValue).toHaveBeenCalledWith(1);
+  });
+
+  it("falls back to default view day count for invalid persisted values", async () => {
+    mockViewDayCountState.value = 99;
+
+    const { result } = renderHook(() => useSchedulePage());
+    await waitFor(() => expect(result.current.selectedPeriodId).toBe(1));
+
+    expect(result.current.viewDayCount).toBe(7);
   });
 
   it("selects current period on initial load", async () => {
