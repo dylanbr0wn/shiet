@@ -5,7 +5,6 @@ import (
 	"context"
 	"fmt"
 	"sort"
-	"strconv"
 	"strings"
 	"text/template"
 	"time"
@@ -23,7 +22,7 @@ const (
 const builtinTextSummaryTemplate = `Period: {{.PeriodLabel}}
 {{.StartDate}} to {{.EndDate}}
 
-Target: {{duration .TargetMinutes}} ({{hoursPerDay .TargetHoursPerDay}}h/day)
+Target: {{duration .TargetMinutes}}
 Actual: {{duration .ActualMinutes}}
 Variance: {{signedDuration .VarianceMinutes}}
 
@@ -97,17 +96,16 @@ type ExportDayTotals struct {
 
 // PeriodExportModel is the intermediate period export aggregation.
 type PeriodExportModel struct {
-	PeriodID          int64                   `json:"periodId"`
-	PeriodLabel       string                  `json:"periodLabel"`
-	StartDate         string                  `json:"startDate"`
-	EndDate           string                  `json:"endDate"`
-	TargetHoursPerDay float64                 `json:"targetHoursPerDay"`
-	TargetMinutes     int                     `json:"targetMinutes"`
-	ActualMinutes     int                     `json:"actualMinutes"`
-	Days              []string                `json:"days"`
-	Entries           []ExportEntry           `json:"entries"`
-	DailyTotals       []ExportDayTotals       `json:"dailyTotals"`
-	PeriodTotals      []ExportCategoryMinutes `json:"periodTotals"`
+	PeriodID      int64                   `json:"periodId"`
+	PeriodLabel   string                  `json:"periodLabel"`
+	StartDate     string                  `json:"startDate"`
+	EndDate       string                  `json:"endDate"`
+	TargetMinutes int                     `json:"targetMinutes"`
+	ActualMinutes int                     `json:"actualMinutes"`
+	Days          []string                `json:"days"`
+	Entries       []ExportEntry           `json:"entries"`
+	DailyTotals   []ExportDayTotals       `json:"dailyTotals"`
+	PeriodTotals  []ExportCategoryMinutes `json:"periodTotals"`
 }
 
 // PeriodExportRender is rendered export content ready to save.
@@ -221,8 +219,16 @@ func (s *Service) BuildPeriodExport(ctx context.Context, periodID int64) (Period
 	if err != nil {
 		return PeriodExportModel{}, err
 	}
-	targetMinutesPerDay := int(stubTargetHoursPerDay * 60)
-	targetMinutes := targetMinutesPerDay * len(days)
+	expected, err := s.ExpectedTimeForRange(ctx, period.StartDate, period.EndDate)
+	if err != nil {
+		return PeriodExportModel{}, err
+	}
+	expectedByDate := make(map[string]int, len(expected))
+	targetMinutes := 0
+	for _, et := range expected {
+		expectedByDate[et.Date] = et.ExpectedMinutes
+		targetMinutes += et.ExpectedMinutes
+	}
 
 	periodTotalsMap := map[string]ExportCategoryMinutes{}
 	dailyMaps := make([]map[string]ExportCategoryMinutes, len(days))
@@ -253,22 +259,21 @@ func (s *Service) BuildPeriodExport(ctx context.Context, periodID int64) (Period
 			Date:          day,
 			Categories:    cats,
 			ActualMinutes: dayActual,
-			TargetMinutes: targetMinutesPerDay,
+			TargetMinutes: expectedByDate[day],
 		}
 	}
 
 	return PeriodExportModel{
-		PeriodID:          period.ID,
-		PeriodLabel:       formatPeriodLabel(period.StartDate, period.EndDate),
-		StartDate:         period.StartDate,
-		EndDate:           period.EndDate,
-		TargetHoursPerDay: stubTargetHoursPerDay,
-		TargetMinutes:     targetMinutes,
-		ActualMinutes:     actualMinutes,
-		Days:              days,
-		Entries:           entries,
-		DailyTotals:       dailyTotals,
-		PeriodTotals:      sortedCategoryMinutes(periodTotalsMap),
+		PeriodID:      period.ID,
+		PeriodLabel:   formatPeriodLabel(period.StartDate, period.EndDate),
+		StartDate:     period.StartDate,
+		EndDate:       period.EndDate,
+		TargetMinutes: targetMinutes,
+		ActualMinutes: actualMinutes,
+		Days:          days,
+		Entries:       entries,
+		DailyTotals:   dailyTotals,
+		PeriodTotals:  sortedCategoryMinutes(periodTotalsMap),
 	}, nil
 }
 
@@ -320,7 +325,6 @@ func exportTemplateFuncs() template.FuncMap {
 	return template.FuncMap{
 		"duration":       formatExportDuration,
 		"signedDuration": formatSignedExportDuration,
-		"hoursPerDay":    formatExportHoursPerDay,
 	}
 }
 
@@ -342,10 +346,6 @@ func formatSignedExportDuration(minutes int) string {
 		sign = "-"
 	}
 	return sign + formatExportDuration(absInt(minutes))
-}
-
-func formatExportHoursPerDay(hours float64) string {
-	return strconv.FormatFloat(hours, 'g', -1, 64)
 }
 
 func absInt(n int) int {

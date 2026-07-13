@@ -249,7 +249,7 @@ func (s *ExportService) BuildPeriodExport(ctx context.Context, req *connect.Requ
 	for i, item := range model.DailyTotals {
 		daily[i] = &appv1.ExportDayTotals{Date: item.Date, Categories: toProtoExportCategoryMinutes(item.Categories), ActualMinutes: int32(item.ActualMinutes), TargetMinutes: int32(item.TargetMinutes)}
 	}
-	return connect.NewResponse(&appv1.BuildPeriodExportResponse{PeriodId: model.PeriodID, PeriodLabel: model.PeriodLabel, StartDate: model.StartDate, EndDate: model.EndDate, TargetHoursPerDay: model.TargetHoursPerDay, TargetMinutes: int32(model.TargetMinutes), ActualMinutes: int32(model.ActualMinutes), Days: append([]string(nil), model.Days...), Entries: entries, DailyTotals: daily, PeriodTotals: toProtoExportCategoryMinutes(model.PeriodTotals)}), nil
+	return connect.NewResponse(&appv1.BuildPeriodExportResponse{PeriodId: model.PeriodID, PeriodLabel: model.PeriodLabel, StartDate: model.StartDate, EndDate: model.EndDate, TargetMinutes: int32(model.TargetMinutes), ActualMinutes: int32(model.ActualMinutes), Days: append([]string(nil), model.Days...), Entries: entries, DailyTotals: daily, PeriodTotals: toProtoExportCategoryMinutes(model.PeriodTotals)}), nil
 }
 
 func (s *ExportService) ListExportTemplates(ctx context.Context, _ *connect.Request[appv1.ListExportTemplatesRequest]) (*connect.Response[appv1.ListExportTemplatesResponse], error) {

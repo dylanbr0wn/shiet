@@ -68,6 +68,7 @@ import {
   updateCategory,
   updateTimeEntry,
   validateAIConfig,
+  expectedTimeForRange,
 } from "./shietService";
 import type { TimeWindow } from "./types";
 
@@ -106,6 +107,8 @@ export const shietQueryKeys = {
     [...shietQueryKeys.period(periodId), "reviewDecisions"] as const,
   periodTzSegments: (periodId: number) =>
     [...shietQueryKeys.period(periodId), "tzSegments"] as const,
+  expectedTimeRange: (startDate: string, endDate: string) =>
+    [...shietQueryKeys.all, "expectedTime", startDate, endDate] as const,
   selectedCalendars: () =>
     [...shietQueryKeys.calendars(), "selected"] as const,
   connections: () => [...shietQueryKeys.all, "connections"] as const,
@@ -334,6 +337,17 @@ export function useEvents(periodId: number | null | undefined) {
     enabled: typeof periodId === "number",
     queryKey: shietQueryKeys.periodEvents(periodId ?? 0),
     queryFn: () => listEvents(periodId as number),
+  });
+}
+
+export function useExpectedTimeForRange(
+  startDate: string | null | undefined,
+  endDate: string | null | undefined,
+) {
+  return useQuery({
+    enabled: Boolean(startDate && endDate),
+    queryKey: shietQueryKeys.expectedTimeRange(startDate ?? "", endDate ?? ""),
+    queryFn: () => expectedTimeForRange(startDate as string, endDate as string),
   });
 }
 

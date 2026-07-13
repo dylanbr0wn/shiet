@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/item";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import type { Category, Event, Period, ReviewDecision } from "@/lib/api";
+import { useExpectedTimeForRange } from "@/lib/api";
 import { buildPeriodExportSummary } from "@/lib/export";
 import { errorMessage, localDateKey, type ScheduleGapOverlay } from "@/lib/schedule";
 import type { ScheduleItem } from "@/lib/schedule/types";
@@ -40,13 +41,20 @@ export function ScheduleSidebar({
   backendError,
 }: ScheduleSidebarProps) {
   const today = useMemo(() => localDateKey(), []);
+  const expectedQuery = useExpectedTimeForRange(
+    activePeriod?.startDate,
+    activePeriod?.endDate,
+  );
   const exportSummary = useMemo(() => {
-    if (!activePeriod) {
+    if (!activePeriod || !expectedQuery.isSuccess) {
       return null;
     }
 
-    return buildPeriodExportSummary(items, activePeriod, { categories });
-  }, [activePeriod, categories, items]);
+    return buildPeriodExportSummary(items, activePeriod, {
+      categories,
+      expectedDays: expectedQuery.data,
+    });
+  }, [activePeriod, categories, expectedQuery.data, expectedQuery.isSuccess, items]);
 
   return (
         <ScrollArea className="app-no-drag h-full min-h-0 pl-2 pr-0">

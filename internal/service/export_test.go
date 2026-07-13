@@ -158,6 +158,9 @@ func TestBuildPeriodExport_EntriesAndRollups(t *testing.T) {
 	if len(model.DailyTotals) != 2 {
 		t.Fatalf("dailyTotals len = %d", len(model.DailyTotals))
 	}
+	if model.DailyTotals[0].TargetMinutes != 480 || model.DailyTotals[1].TargetMinutes != 480 {
+		t.Fatalf("weekday daily targets = %d, %d want 480 each", model.DailyTotals[0].TargetMinutes, model.DailyTotals[1].TargetMinutes)
+	}
 	day1 := categoryMinutesByName(model.DailyTotals[0])
 	if day1["Meetings"] != 120 || day1["Deep Work"] != 120 {
 		t.Fatalf("day1 categories = %+v", day1)
@@ -165,6 +168,27 @@ func TestBuildPeriodExport_EntriesAndRollups(t *testing.T) {
 	day2 := categoryMinutesByName(model.DailyTotals[1])
 	if day2["Deep Work"] != 120 {
 		t.Fatalf("day2 categories = %+v", day2)
+	}
+}
+
+func TestBuildPeriodExport_WeekendDaysHaveZeroTarget(t *testing.T) {
+	// Fri–Sun: only Friday carries seeded expected minutes.
+	e := newGapEnv(t, "2026-06-05", "2026-06-07", "America/Toronto")
+	model, err := e.svc.BuildPeriodExport(context.Background(), e.periodID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if model.TargetMinutes != 480 {
+		t.Fatalf("targetMinutes = %d want 480 (Friday only)", model.TargetMinutes)
+	}
+	if len(model.DailyTotals) != 3 {
+		t.Fatalf("dailyTotals len = %d", len(model.DailyTotals))
+	}
+	if model.DailyTotals[0].TargetMinutes != 480 {
+		t.Fatalf("Friday target = %d want 480", model.DailyTotals[0].TargetMinutes)
+	}
+	if model.DailyTotals[1].TargetMinutes != 0 || model.DailyTotals[2].TargetMinutes != 0 {
+		t.Fatalf("weekend targets = %d, %d want 0", model.DailyTotals[1].TargetMinutes, model.DailyTotals[2].TargetMinutes)
 	}
 }
 
@@ -584,7 +608,7 @@ func TestRenderPeriodExport_TextSummaryShape(t *testing.T) {
 		"Period: Jun 1-Jun 2",
 		"2026-06-01 to 2026-06-02",
 		"",
-		"Target: 16h (8h/day)",
+		"Target: 16h",
 		"Actual: 6h",
 		"Variance: -10h",
 		"",

@@ -18,6 +18,21 @@ const period: Period = {
   anchorDate: "2026-06-01",
 };
 
+const expectedDays = [
+  {
+    date: "2026-06-01",
+    expectedMinutes: 480,
+    windows: [{ startMinutes: 540, endMinutes: 1020 }],
+    source: "weekday",
+  },
+  {
+    date: "2026-06-02",
+    expectedMinutes: 480,
+    windows: [{ startMinutes: 540, endMinutes: 1020 }],
+    source: "weekday",
+  },
+];
+
 const items: ScheduleItem[] = [
   {
     id: "event-1",
@@ -59,7 +74,7 @@ const items: ScheduleItem[] = [
 
 describe("period export", () => {
   it("builds period and daily totals from schedule items", () => {
-    const summary = buildPeriodExportSummary(items, period);
+    const summary = buildPeriodExportSummary(items, period, { expectedDays });
 
     expect(summary.periodTotals).toEqual({
       Calendar: 120,
@@ -69,7 +84,6 @@ describe("period export", () => {
       Calendar: "#0EA5E9",
       Development: "#8B5CF6",
     });
-    expect(summary.targetHoursPerDay).toBe(8);
     expect(summary.targetMinutes).toBe(8 * 60 * 2);
     expect(summary.actualMinutes).toBe(360);
     expect(summary.dailyTotals).toEqual([
@@ -93,12 +107,50 @@ describe("period export", () => {
     ]);
   });
 
+  it("sums only ExpectedTime targets (weekends stay zero)", () => {
+    const weekendPeriod: Period = {
+      id: 2,
+      startDate: "2026-06-05",
+      endDate: "2026-06-07",
+      cadence: "weekly",
+      anchorDate: "2026-06-05",
+    };
+    const summary = buildPeriodExportSummary([], weekendPeriod, {
+      expectedDays: [
+        {
+          date: "2026-06-05",
+          expectedMinutes: 480,
+          windows: [],
+          source: "weekday",
+        },
+        {
+          date: "2026-06-06",
+          expectedMinutes: 0,
+          windows: [],
+          source: "weekday",
+        },
+        {
+          date: "2026-06-07",
+          expectedMinutes: 0,
+          windows: [],
+          source: "weekday",
+        },
+      ],
+    });
+
+    expect(summary.targetMinutes).toBe(480);
+    expect(summary.dailyTotals.map((day) => day.targetMinutes)).toEqual([
+      480, 0, 0,
+    ]);
+  });
+
   it("formats a copyable text summary", () => {
-    const summary = buildPeriodExportSummary(items, period);
+    const summary = buildPeriodExportSummary(items, period, { expectedDays });
     const text = formatSummaryText(summary);
 
     expect(text).toContain("Period: Jun 1-Jun 2");
-    expect(text).toContain("Target: 16h (8h/day)");
+    expect(text).toContain("Target: 16h");
+    expect(text).not.toContain("h/day");
     expect(text).toContain("Actual: 6h");
     expect(text).toContain("Variance: -10h");
     expect(text).toContain("Calendar: 2h");
@@ -108,7 +160,7 @@ describe("period export", () => {
   });
 
   it("formats a category-by-day CSV matrix", () => {
-    const summary = buildPeriodExportSummary(items, period);
+    const summary = buildPeriodExportSummary(items, period, { expectedDays });
     const csv = formatSummaryCSV(summary);
 
     expect(csv).toBe(
@@ -121,7 +173,7 @@ describe("period export", () => {
   });
 
   it("formats a flat daily category×day CSV", () => {
-    const summary = buildPeriodExportSummary(items, period);
+    const summary = buildPeriodExportSummary(items, period, { expectedDays });
     const csv = formatFlatDailyCSV(summary, {
       Calendar: "CAL",
       Development: "DEV",
@@ -154,7 +206,7 @@ describe("period export", () => {
   });
 
   it("builds a stable default export filename", () => {
-    const summary = buildPeriodExportSummary(items, period);
+    const summary = buildPeriodExportSummary(items, period, { expectedDays });
 
     expect(defaultExportFilename(summary)).toBe(
       "shiet-2026-06-01-to-2026-06-02.csv",

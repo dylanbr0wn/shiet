@@ -10,6 +10,7 @@ import type {
   Event,
   EventCategoryOverlay,
   ExcludeEventInput,
+  ExpectedTime,
   GapEvidenceItem,
   GitHubRepo,
   BitbucketRepo,
@@ -99,6 +100,7 @@ import {
   updateExportTemplateRPC,
   updateTimeEntryRPC,
 } from "./applicationRpc";
+import { expectedTimeForRangeRPC } from "./workScheduleRpc";
 
 interface ShietApp {
   ClassifyAIEndpoint(baseURL: string): Promise<AIClassification>;
@@ -296,6 +298,12 @@ export function listTzSegments(periodId: number) {
 
 export function computeGaps(periodId: number) {
   return readFromPortableBackend<DayTimeline[]>([], () => computeGapsRPC(periodId));
+}
+
+export function expectedTimeForRange(startDate: string, endDate: string) {
+  return readFromPortableBackend<ExpectedTime[]>([], () =>
+    expectedTimeForRangeRPC(startDate, endDate),
+  );
 }
 
 export function getSetting(key: string) {

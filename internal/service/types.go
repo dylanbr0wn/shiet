@@ -213,9 +213,6 @@ func toCategory(r sqlc.Category) Category {
 	}
 }
 
-// stubTargetHoursPerDay keeps gaps/export compiling until ExpectedTime rewire (DYL-158).
-const stubTargetHoursPerDay = 8.0
-
 func toProject(r sqlc.Project) Project {
 	color := ""
 	if r.Color.Valid {
