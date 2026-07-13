@@ -38,7 +38,7 @@ func (s *Service) applyAISuggestion(ctx context.Context, q *sqlc.Queries, period
 	probeCtx, cancel := context.WithTimeout(ctx, 20*time.Second)
 	defer cancel()
 
-	client := ai.NewClient(baseURL, "")
+	client := s.loadAIChatClient(ctx, baseURL, "")
 	suggestedKey, err := ai.SuggestCategory(
 		probeCtx,
 		client,

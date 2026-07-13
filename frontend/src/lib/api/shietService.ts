@@ -120,6 +120,9 @@ interface ShietApp {
   SaveAIConfig(baseURL: string, model: string): Promise<void>;
   SaveAIEndpoint(baseURL: string): Promise<void>;
   SaveAIModel(model: string): Promise<void>;
+  SaveAIAPIKey(apiKey: string): Promise<void>;
+  ClearAIAPIKey(): Promise<void>;
+  HasAIAPIKey(): Promise<boolean>;
   SaveExportFile(defaultFilename: string, content: string): Promise<string>;
   ValidateAIConfig(
     baseURL: string,
@@ -359,6 +362,18 @@ export function saveAIEndpoint(baseURL: string) {
 
 export function saveAIModel(model: string) {
   return writeToBackend(() => appBackend.SaveAIModel(model));
+}
+
+export function saveAIAPIKey(apiKey: string) {
+  return writeToBackend(() => appBackend.SaveAIAPIKey(apiKey));
+}
+
+export function clearAIAPIKey() {
+  return writeToBackend(() => appBackend.ClearAIAPIKey());
+}
+
+export function hasAIAPIKey() {
+  return readFromBackend(false, () => appBackend.HasAIAPIKey());
 }
 
 export function saveExportFile(defaultFilename: string, content: string) {

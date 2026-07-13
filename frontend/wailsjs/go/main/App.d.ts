@@ -38,6 +38,12 @@ export function SaveAIEndpoint(arg1:string):Promise<void>;
 
 export function SaveAIModel(arg1:string):Promise<void>;
 
+export function SaveAIAPIKey(arg1:string):Promise<void>;
+
+export function ClearAIAPIKey():Promise<void>;
+
+export function HasAIAPIKey():Promise<boolean>;
+
 export function SaveExportFile(arg1:string,arg2:string):Promise<string>;
 
 export function SlackAuthMode():Promise<string>;

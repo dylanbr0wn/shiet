@@ -53,6 +53,9 @@ import {
   saveAIConfig,
   saveAIEndpoint,
   saveAIModel,
+  saveAIAPIKey,
+  clearAIAPIKey,
+  hasAIAPIKey,
   setCalendarDefaultCategory,
   setCalendarSelected,
   setGitHubRepoSelected,
@@ -137,6 +140,7 @@ export const shietQueryKeys = {
     [...shietQueryKeys.all, "ai", "models", baseURL] as const,
   aiValidation: (baseURL: string, apiKey: string, model: string) =>
     [...shietQueryKeys.all, "ai", "validation", baseURL, apiKey, model] as const,
+  aiHasKey: () => [...shietQueryKeys.all, "ai", "hasKey"] as const,
 };
 
 export function usePeriods() {
@@ -696,6 +700,37 @@ export function useSaveAIConfig() {
     onSettled: () => {
       void queryClient.invalidateQueries({ queryKey: baseURLKey });
       void queryClient.invalidateQueries({ queryKey: modelKey });
+    },
+  });
+}
+
+export function useHasAIAPIKey() {
+  return useQuery({
+    queryKey: shietQueryKeys.aiHasKey(),
+    queryFn: hasAIAPIKey,
+  });
+}
+
+export function useSaveAIAPIKey() {
+  const queryClient = useQueryClient();
+  const queryKey = shietQueryKeys.aiHasKey();
+
+  return useMutation({
+    mutationFn: (apiKey: string) => saveAIAPIKey(apiKey),
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey });
+    },
+  });
+}
+
+export function useClearAIAPIKey() {
+  const queryClient = useQueryClient();
+  const queryKey = shietQueryKeys.aiHasKey();
+
+  return useMutation({
+    mutationFn: () => clearAIAPIKey(),
+    onSettled: () => {
+      void queryClient.invalidateQueries({ queryKey });
     },
   });
 }

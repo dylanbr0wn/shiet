@@ -13,26 +13,19 @@ export type SettingsSectionId =
   | "integrations"
   | "categories"
   | "ai"
+  | "privacy"
   | "export";
 
-export const settingsNavItems: Array<
-  | {
-      id: SettingsSectionId;
-      label: string;
-      icon: LucideIcon;
-      ready: true;
-    }
-  | {
-      id: "privacy";
-      label: string;
-      icon: LucideIcon;
-      ready: false;
-    }
-> = [
+export const settingsNavItems: Array<{
+  id: SettingsSectionId;
+  label: string;
+  icon: LucideIcon;
+  ready: true;
+}> = [
   { id: "general", label: "General", icon: Settings, ready: true },
   { id: "integrations", label: "Integrations", icon: Plug, ready: true },
   { id: "categories", label: "Categories", icon: Tags, ready: true },
   { id: "ai", label: "AI Model", icon: Sparkles, ready: true },
-  { id: "privacy", label: "Privacy", icon: Shield, ready: false },
+  { id: "privacy", label: "Privacy", icon: Shield, ready: true },
   { id: "export", label: "Export", icon: Download, ready: true },
 ];

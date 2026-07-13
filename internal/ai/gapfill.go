@@ -11,7 +11,7 @@ import (
 // description for an uncovered interval, optionally citing activity evidence.
 func SuggestGapFill(
 	ctx context.Context,
-	client *Client,
+	client ChatClient,
 	model string,
 	categories []CategoryDefinition,
 	gap GapContext,

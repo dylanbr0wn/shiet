@@ -52,7 +52,7 @@ func (s *Service) SuggestGapFill(ctx context.Context, window TimeWindow) (GapSug
 	probeCtx, cancel := context.WithTimeout(ctx, 20*time.Second)
 	defer cancel()
 
-	client := ai.NewClient(baseURL, "")
+	client := s.loadAIChatClient(ctx, baseURL, "")
 	categoryKey, description, err := ai.SuggestGapFill(
 		probeCtx,
 		client,

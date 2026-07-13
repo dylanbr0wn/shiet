@@ -9,7 +9,7 @@ import (
 // SuggestCategory asks the model to pick one category key for an event.
 func SuggestCategory(
 	ctx context.Context,
-	client *Client,
+	client ChatClient,
 	model string,
 	categories []CategoryDefinition,
 	event EventContext,

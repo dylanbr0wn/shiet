@@ -76,13 +76,30 @@ const mockState = vi.hoisted(() => {
 });
 
 vi.mock("../settings/useJsonSetting", () => ({
-  useJsonSetting: () => ({
-    value: mockViewDayCountState.value,
-    setValue: mockViewDayCountState.setValue,
-    isLoading: false,
-    isSaving: false,
-    error: null,
-  }),
+  useJsonSetting: (key: string) => {
+    if (key === "privacy.fields") {
+      return {
+        value: {
+          title: true,
+          attendees: true,
+          description: false,
+          location: false,
+        },
+        setValue: vi.fn(),
+        isLoading: false,
+        isSaving: false,
+        error: null,
+      };
+    }
+
+    return {
+      value: mockViewDayCountState.value,
+      setValue: mockViewDayCountState.setValue,
+      isLoading: false,
+      isSaving: false,
+      error: null,
+    };
+  },
 }));
 
 vi.mock("@/lib/schedule", async () => {

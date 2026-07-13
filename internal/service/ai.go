@@ -27,9 +27,9 @@ func (s *Service) ClassifyAIEndpoint(baseURL string) (bool, string) {
 	return ai.ClassifyEndpoint(baseURL)
 }
 
-// ListAIModels fetches model ids from an OpenAI-compatible endpoint.
+// ListAIModels fetches model ids from an OpenAI-compatible or Anthropic endpoint.
 func (s *Service) ListAIModels(ctx context.Context, baseURL, apiKey string) ([]string, error) {
-	client := ai.NewClient(baseURL, apiKey)
+	client := s.loadAIChatClient(ctx, baseURL, apiKey)
 	models, err := client.ListModels(ctx)
 	if err != nil {
 		return nil, mapErr("list ai models", err)
@@ -54,7 +54,7 @@ func (s *Service) ValidateAIConfig(ctx context.Context, baseURL, apiKey, model s
 		return result, nil
 	}
 
-	client := ai.NewClient(baseURL, apiKey)
+	client := s.loadAIChatClient(ctx, baseURL, apiKey)
 	if err := client.Validate(ctx, model); err != nil {
 		result.Message = err.Error()
 		return result, mapErr("validate ai config", err)
