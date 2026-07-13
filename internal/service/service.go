@@ -13,6 +13,7 @@ import (
 	"fmt"
 
 	"github.com/dylanbr0wn/shiet/internal/db/sqlc"
+	"github.com/dylanbr0wn/shiet/internal/integration/secrets"
 )
 
 // ErrNotFound is returned when a requested row does not exist. Callers can test
@@ -27,6 +28,7 @@ type Service struct {
 	q            *sqlc.Queries
 	calendarSync *CalendarSyncConfig
 	evidence     *EvidenceConfig
+	aiSecrets    secrets.TokenStore
 }
 
 // New builds a Service over an open database connection.

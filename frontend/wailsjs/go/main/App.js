@@ -70,6 +70,18 @@ export function SaveAIModel(arg1) {
   return window['go']['main']['App']['SaveAIModel'](arg1);
 }
 
+export function SaveAIAPIKey(arg1) {
+  return window['go']['main']['App']['SaveAIAPIKey'](arg1);
+}
+
+export function ClearAIAPIKey() {
+  return window['go']['main']['App']['ClearAIAPIKey']();
+}
+
+export function HasAIAPIKey() {
+  return window['go']['main']['App']['HasAIAPIKey']();
+}
+
 export function SaveExportFile(arg1, arg2) {
   return window['go']['main']['App']['SaveExportFile'](arg1, arg2);
 }

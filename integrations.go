@@ -77,6 +77,7 @@ func wireIntegrations(conn *sql.DB, svc *service.Service, cfg config.Config) (*g
 		BrokerBaseURL: bitbucketAuth.BrokerBaseURL,
 	}
 
+	svc.SetAISecrets(store)
 	svc.SetCalendarSync(service.CalendarSyncConfig{
 		Puller:      googleProvider,
 		Connections: connectionAdapter{reg: registry},

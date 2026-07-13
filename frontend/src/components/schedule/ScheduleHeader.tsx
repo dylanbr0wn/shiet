@@ -1,5 +1,7 @@
+import { Link } from "@tanstack/react-router";
 import { LoaderCircle, Plus, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -45,6 +47,23 @@ export function ScheduleHeader({ schedule }: ScheduleHeaderProps) {
 
   return (
     <div className="app-no-drag flex flex-wrap items-center gap-2">
+      {schedule.aiConfigured ? (
+        <Link
+          to={schedule.aiLocal ? "/settings/ai" : "/settings/privacy"}
+          className="hidden sm:block"
+        >
+          <Badge
+            variant="secondary"
+            className={
+              schedule.aiLocal
+                ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
+                : "bg-amber-500/10 text-amber-700 dark:text-amber-300"
+            }
+          >
+            {schedule.aiPrivacyLabel}
+          </Badge>
+        </Link>
+      ) : null}
       {lastSyncedLabel ? (
         <p className="hidden text-xs text-muted-foreground sm:block">
           Last synced {lastSyncedLabel}

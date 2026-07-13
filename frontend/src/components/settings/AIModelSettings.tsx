@@ -5,8 +5,17 @@ import {
   ShieldCheck,
   ShieldAlert,
 } from "lucide-react";
+import { Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   Field,
   FieldDescription,
@@ -32,8 +41,11 @@ import {
 import {
   useAIModels,
   useClassifyAIEndpoint,
+  useClearAIAPIKey,
   useClearAIModel,
   useDiscoverLocalAIEndpoints,
+  useHasAIAPIKey,
+  useSaveAIAPIKey,
   useSaveAIConfig,
   useSaveAIEndpoint,
   useSaveAIModel,
@@ -42,6 +54,7 @@ import {
   useValidateAIConfig,
 } from "@/lib/api";
 import type { AIEndpoint } from "@/lib/api/types";
+import { AI_CLOUD_PRESETS } from "@/lib/ai/privacy";
 import { aiEndpointsMatch } from "@/lib/ai/endpoints";
 import { SettingBlock } from "./SettingBlock";
 
@@ -136,8 +149,17 @@ export function AIModelSettings() {
   const [validationMessage, setValidationMessage] = useState<string | null>(
     null,
   );
+  const [privacyConfirmOpen, setPrivacyConfirmOpen] = useState(false);
+  const [pendingValidation, setPendingValidation] = useState<{
+    baseURL: string;
+    model: string;
+  } | null>(null);
 
   const discovery = useDiscoverLocalAIEndpoints();
+  const hasKeyQuery = useHasAIAPIKey();
+  const saveAPIKey = useSaveAIAPIKey();
+  const clearAPIKey = useClearAIAPIKey();
+  const privacyConfirmedSetting = useSetting("privacy.confirmed");
   const activeBaseURL = baseURLDraft || savedBaseURL;
   const activeModel = modelDraft ?? savedModel;
   const classify = useClassifyAIEndpoint(activeBaseURL);
@@ -223,6 +245,19 @@ export function AIModelSettings() {
     });
   };
 
+  const privacyConfirmed = useMemo(
+    () => parseJsonSetting(privacyConfirmedSetting.data, false),
+    [privacyConfirmedSetting.data],
+  );
+
+  const completeValidatedSave = async (baseURL: string, model: string) => {
+    if (apiKey.trim()) {
+      await saveAPIKey.mutateAsync(apiKey.trim());
+      setApiKey("");
+    }
+    await saveConfig.mutateAsync({ baseURL, model });
+  };
+
   const handleValidate = async () => {
     const result = await validate.refetch();
     if (result.error) {
@@ -240,8 +275,41 @@ export function AIModelSettings() {
     }
 
     setValidationMessage(validation.message);
-    if (validation.ok) {
-      await saveConfig.mutateAsync({ baseURL: activeBaseURL, model: activeModel });
+    if (!validation.ok) {
+      return;
+    }
+
+    if (!validation.local && !privacyConfirmed) {
+      setPendingValidation({ baseURL: activeBaseURL, model: activeModel });
+      setPrivacyConfirmOpen(true);
+      return;
+    }
+
+    await completeValidatedSave(activeBaseURL, activeModel);
+  };
+
+  const handleConfirmPrivacy = async () => {
+    await setSetting.mutateAsync({
+      key: "privacy.confirmed",
+      value: JSON.stringify(true),
+    });
+    setPrivacyConfirmOpen(false);
+    if (pendingValidation) {
+      await completeValidatedSave(
+        pendingValidation.baseURL,
+        pendingValidation.model,
+      );
+      setPendingValidation(null);
+    }
+  };
+
+  const handleSelectPreset = async (baseUrl: string) => {
+    setValidationMessage(null);
+    setBaseURLDraft(baseUrl);
+    setModelDraft(null);
+    await saveEndpoint.mutateAsync(baseUrl);
+    if (!aiEndpointsMatch(baseUrl, savedBaseURL)) {
+      await clearModel.mutateAsync();
     }
   };
 
@@ -253,13 +321,15 @@ export function AIModelSettings() {
     saveModel.isPending ||
     clearModel.isPending ||
     saveConfig.isPending ||
+    saveAPIKey.isPending ||
+    clearAPIKey.isPending ||
     setSetting.isPending;
 
   return (
     <div className="mx-auto max-w-2xl space-y-6">
       <SettingBlock
         title="AI Model"
-        description="Bring your own model. Point shiet at a local runtime or a custom OpenAI-compatible endpoint for categorization suggestions."
+        description="Bring your own model. Point shiet at a local runtime or a cloud provider for categorization suggestions."
       >
         <Field>
           <div className="flex items-center justify-between gap-3">
@@ -321,13 +391,43 @@ export function AIModelSettings() {
                 </button>
               </Item>
             ))}
+            {AI_CLOUD_PRESETS.map((preset) => (
+              <Item
+                key={preset.id}
+                variant="outline"
+                asChild
+                className={
+                  aiEndpointsMatch(activeBaseURL, preset.baseUrl)
+                    ? "border-primary bg-primary/5"
+                    : undefined
+                }
+              >
+                <button
+                  type="button"
+                  className="text-left hover:bg-muted/50"
+                  onClick={() => void handleSelectPreset(preset.baseUrl)}
+                >
+                  <ItemContent>
+                    <ItemTitle className="flex flex-wrap items-center gap-2">
+                      <span>{preset.name}</span>
+                      <span className="rounded-full bg-amber-500/10 px-2 py-0.5 text-[10px] font-medium text-amber-700 dark:text-amber-300">
+                        Cloud
+                      </span>
+                    </ItemTitle>
+                    <ItemDescription className="font-mono">
+                      {preset.baseUrl}
+                    </ItemDescription>
+                  </ItemContent>
+                </button>
+              </Item>
+            ))}
           </ItemGroup>
         </Field>
       </SettingBlock>
 
       <SettingBlock
         title="Connection"
-        description="Configure the OpenAI-compatible base URL and model shiet should use."
+        description="Configure the base URL and model shiet should use."
       >
         <Field>
             <FieldLabel htmlFor="ai-base-url">Base URL</FieldLabel>
@@ -359,8 +459,31 @@ export function AIModelSettings() {
               className="font-mono"
               value={apiKey}
               onChange={(event) => setApiKey(event.target.value)}
-              placeholder="Not required for local models"
+              placeholder={
+                hasKeyQuery.data
+                  ? "Enter a new key to replace the stored one"
+                  : "Not required for local models"
+              }
             />
+            {hasKeyQuery.data ? (
+              <FieldDescription className="flex flex-wrap items-center gap-2">
+                <span>API key stored in the OS keychain.</span>
+                <Button
+                  type="button"
+                  variant="link"
+                  className="h-auto p-0"
+                  disabled={clearAPIKey.isPending}
+                  onClick={() => void clearAPIKey.mutateAsync()}
+                >
+                  Clear stored key
+                </Button>
+              </FieldDescription>
+            ) : (
+              <FieldDescription>
+                Cloud providers require a key. Stored only in the OS keychain,
+                never SQLite.
+              </FieldDescription>
+            )}
           </Field>
 
           <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
@@ -466,6 +589,16 @@ export function AIModelSettings() {
                     : "Cloud — data may leave your device"}
                 </ItemTitle>
                 <ItemDescription>{classification.verdict}</ItemDescription>
+                {!classification.local ? (
+                  <ItemDescription>
+                    <Link
+                      to="/settings/privacy"
+                      className="text-primary underline-offset-4 hover:underline"
+                    >
+                      Review privacy settings
+                    </Link>
+                  </ItemDescription>
+                ) : null}
               </ItemContent>
             </Item>
           ) : null}
@@ -474,6 +607,44 @@ export function AIModelSettings() {
             <FieldDescription>{validationMessage}</FieldDescription>
           ) : null}
       </SettingBlock>
+
+      <Dialog open={privacyConfirmOpen} onOpenChange={setPrivacyConfirmOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Cloud model privacy</DialogTitle>
+            <DialogDescription>
+              Cloud models receive a minimized payload by default: event titles
+              and attendee domains (never email addresses). Category names are
+              always sent so the model can pick from your list.
+            </DialogDescription>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            You can change what gets shared anytime in{" "}
+            <Link
+              to="/settings/privacy"
+              className="text-primary underline-offset-4 hover:underline"
+            >
+              Privacy settings
+            </Link>
+            .
+          </p>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                setPrivacyConfirmOpen(false);
+                setPendingValidation(null);
+              }}
+            >
+              Cancel
+            </Button>
+            <Button type="button" onClick={() => void handleConfirmPrivacy()}>
+              Continue with cloud model
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

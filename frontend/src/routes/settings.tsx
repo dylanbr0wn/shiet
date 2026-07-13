@@ -45,6 +45,7 @@ const sectionPaths = {
   integrations: "/settings/integrations",
   categories: "/settings/categories",
   ai: "/settings/ai",
+  privacy: "/settings/privacy",
   export: "/settings/export",
 } as const satisfies Record<SettingsSectionId, string>;
 

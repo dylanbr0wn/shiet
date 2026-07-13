@@ -115,6 +115,7 @@ export interface SchedulePageViewModel {
   gapEvidenceError: unknown;
   aiConfigured: boolean;
   aiLocal: boolean;
+  aiPrivacyLabel: string;
   handleSelectGap: (gap: ScheduleGapOverlay) => void;
   handleCloseGapSuggest: () => void;
   handleRetryGapSuggest: () => void;

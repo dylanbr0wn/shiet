@@ -1,6 +1,10 @@
 import { useCallback, useEffect, useMemo, useState, type SetStateAction } from "react";
 import { defaultTimeZone, localDateKey, type ScheduleGapOverlay } from "@/lib/schedule";
 import { useJsonSetting } from "../settings/useJsonSetting";
+import {
+  DEFAULT_PRIVACY_FIELDS,
+  formatPrivacySharingSummary,
+} from "@/lib/ai/privacy";
 import { useSchedulePageEditor } from "./schedulePage.editor";
 import { useSchedulePageBaseQueries, useSchedulePagePeriodQueries } from "./schedulePage.queries";
 import {
@@ -34,6 +38,10 @@ export function useSchedulePage(): SchedulePageViewModel {
   const viewDayCountSetting = useJsonSetting<number>(
     SCHEDULE_VIEW_DAY_COUNT_KEY,
     7,
+  );
+  const privacyFieldsSetting = useJsonSetting(
+    "privacy.fields",
+    DEFAULT_PRIVACY_FIELDS,
   );
   const viewDayCount = parseScheduleViewDayCount(viewDayCountSetting.value);
   const setViewDayCount = useCallback(
@@ -150,6 +158,11 @@ export function useSchedulePage(): SchedulePageViewModel {
     gapSuggest.handleSelectGap(overlay);
   };
 
+  const aiLocal = base.aiClassification.data?.local ?? false;
+  const aiPrivacyLabel = aiLocal
+    ? "Private · on-device"
+    : `Cloud · sharing ${formatPrivacySharingSummary(privacyFieldsSetting.value)}`;
+
   const status = buildSchedulePageStatus({
     loadingFlags: [
       base.periodsQuery.isLoading,
@@ -239,7 +252,8 @@ export function useSchedulePage(): SchedulePageViewModel {
     gapSuggestError: gapSuggest.gapSuggestError,
     gapEvidenceError: gapSuggest.gapEvidenceError,
     aiConfigured: base.aiConfig.isConfigured,
-    aiLocal: base.aiClassification.data?.local ?? false,
+    aiLocal,
+    aiPrivacyLabel,
     handleSelectGap,
     handleCloseGapSuggest: gapSuggest.handleCloseGapSuggest,
     handleRetryGapSuggest: gapSuggest.handleRetryGapSuggest,

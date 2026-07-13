@@ -224,6 +224,21 @@ func (a *App) SaveAIConfig(baseURL string, model string) error {
 	return a.logErr("ai.save_config", a.Svc.SaveAIConfig(a.callContext(), baseURL, model))
 }
 
+// SaveAIAPIKey stores an AI API key in the OS keychain.
+func (a *App) SaveAIAPIKey(apiKey string) error {
+	return a.logErr("ai.save_api_key", a.Svc.SaveAIAPIKey(a.callContext(), apiKey))
+}
+
+// ClearAIAPIKey removes the stored AI API key from the OS keychain.
+func (a *App) ClearAIAPIKey() error {
+	return a.logErr("ai.clear_api_key", a.Svc.ClearAIAPIKey(a.callContext()))
+}
+
+// HasAIAPIKey reports whether an AI API key is stored in the keychain.
+func (a *App) HasAIAPIKey() bool {
+	return a.Svc.HasAIAPIKey(a.callContext())
+}
+
 // SaveExportFile writes content to a user-selected path via the native save dialog.
 // Returns the saved path, or an empty string when the dialog is cancelled.
 func (a *App) SaveExportFile(defaultFilename, content string) (string, error) {
