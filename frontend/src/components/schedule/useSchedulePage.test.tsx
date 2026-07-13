@@ -30,6 +30,8 @@ const mockState = vi.hoisted(() => {
       key: "Work",
       color: "#0EA5E9",
       isDefaultGap: false,
+      archived: false,
+      inUse: false,
     }],
     events: [],
     gapFills: [

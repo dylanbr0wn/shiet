@@ -10,6 +10,7 @@ import (
 )
 
 type Querier interface {
+	ArchiveCategory(ctx context.Context, arg ArchiveCategoryParams) (Category, error)
 	ClearDefaultGap(ctx context.Context) error
 	CountCalendarReferencesToCategory(ctx context.Context, defaultCategoryID sql.NullInt64) (int64, error)
 	CountGapFillReferencesToCategory(ctx context.Context, categoryID sql.NullInt64) (int64, error)
@@ -54,6 +55,7 @@ type Querier interface {
 	GetReviewItemByConflictKey(ctx context.Context, arg GetReviewItemByConflictKeyParams) (ReviewItem, error)
 	GetSetting(ctx context.Context, key string) (string, error)
 	GetSlackChannel(ctx context.Context, id int64) (SlackChannel, error)
+	ListAllCategories(ctx context.Context) ([]Category, error)
 	ListAllEventsForPeriod(ctx context.Context, periodID int64) ([]Event, error)
 	ListBitbucketRepos(ctx context.Context) ([]BitbucketRepo, error)
 	ListBitbucketReposByAccount(ctx context.Context, accountID string) ([]BitbucketRepo, error)
