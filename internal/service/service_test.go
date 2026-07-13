@@ -65,7 +65,7 @@ func TestPeriodsAndTzSegments(t *testing.T) {
 		t.Fatalf("want 1 seeded period, got %d", len(periods))
 	}
 	p := periods[0]
-	if p.Cadence != "bi-weekly" || p.TargetHoursPerDay != 8 {
+	if p.Cadence != "bi-weekly" {
 		t.Fatalf("unexpected period: %+v", p)
 	}
 
@@ -96,10 +96,6 @@ func TestEnsureCurrentPeriodCreatesNextBiWeeklyPeriod(t *testing.T) {
 	}
 	if p.StartDate != "2026-06-15" || p.EndDate != "2026-06-28" {
 		t.Fatalf("unexpected current period: %+v", p)
-	}
-	// Flat target is no longer period authority; stub remains until ExpectedTime rewire.
-	if p.TargetHoursPerDay != 8 {
-		t.Fatalf("stub target hours = %v, want 8", p.TargetHoursPerDay)
 	}
 
 	segs, err := s.ListTzSegments(ctx, p.ID)

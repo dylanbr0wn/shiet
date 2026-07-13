@@ -209,7 +209,7 @@ func (s *Service) BuildPeriodExport(ctx context.Context, periodID int64) (Period
 	if err != nil {
 		return PeriodExportModel{}, err
 	}
-	targetMinutesPerDay := int(period.TargetHoursPerDay * 60)
+	targetMinutesPerDay := int(stubTargetHoursPerDay * 60)
 	targetMinutes := targetMinutesPerDay * len(days)
 
 	periodTotalsMap := map[string]ExportCategoryMinutes{}
@@ -250,7 +250,7 @@ func (s *Service) BuildPeriodExport(ctx context.Context, periodID int64) (Period
 		PeriodLabel:       formatPeriodLabel(period.StartDate, period.EndDate),
 		StartDate:         period.StartDate,
 		EndDate:           period.EndDate,
-		TargetHoursPerDay: period.TargetHoursPerDay,
+		TargetHoursPerDay: stubTargetHoursPerDay,
 		TargetMinutes:     targetMinutes,
 		ActualMinutes:     actualMinutes,
 		Days:              days,

@@ -1,0 +1,91 @@
+syntax = "proto3";
+
+package shiet.app.v1;
+
+option go_package = "github.com/dylanbr0wn/shiet/gen/shiet/app/v1;appv1";
+
+service WorkScheduleService {
+  rpc ListWorkSchedules(ListWorkSchedulesRequest) returns (ListWorkSchedulesResponse);
+  rpc GetWorkSchedule(GetWorkScheduleRequest) returns (GetWorkScheduleResponse);
+  rpc ReplaceActiveWorkSchedule(ReplaceActiveWorkScheduleRequest) returns (ReplaceActiveWorkScheduleResponse);
+  rpc ListScheduleExceptions(ListScheduleExceptionsRequest) returns (ListScheduleExceptionsResponse);
+  rpc UpsertScheduleException(UpsertScheduleExceptionRequest) returns (UpsertScheduleExceptionResponse);
+  rpc DeleteScheduleException(DeleteScheduleExceptionRequest) returns (DeleteScheduleExceptionResponse);
+  rpc ExpectedTimeForDate(ExpectedTimeForDateRequest) returns (ExpectedTimeForDateResponse);
+  rpc ExpectedTimeForRange(ExpectedTimeForRangeRequest) returns (ExpectedTimeForRangeResponse);
+}
+
+message WorkingWindow {
+  int32 start_minutes = 1;
+  int32 end_minutes = 2;
+}
+
+message WorkScheduleDay {
+  string weekday = 1;
+  int32 expected_minutes = 2;
+  repeated WorkingWindow windows = 3;
+}
+
+message WorkSchedule {
+  int64 id = 1;
+  string timezone = 2;
+  string workweek_start = 3;
+  string effective_from = 4;
+  string effective_to = 5;
+  repeated WorkScheduleDay days = 6;
+}
+
+message ScheduleException {
+  int64 id = 1;
+  string date = 2;
+  string kind = 3;
+  int32 expected_minutes = 4;
+  repeated WorkingWindow windows = 5;
+}
+
+message ExpectedTime {
+  string date = 1;
+  int32 expected_minutes = 2;
+  repeated WorkingWindow windows = 3;
+  string source = 4;
+  string exception_kind = 5;
+  string timezone = 6;
+  string workweek_start = 7;
+}
+
+message ListWorkSchedulesRequest {}
+message ListWorkSchedulesResponse { repeated WorkSchedule schedules = 1; }
+
+message GetWorkScheduleRequest { int64 id = 1; }
+message GetWorkScheduleResponse { WorkSchedule schedule = 1; }
+
+message ReplaceActiveWorkScheduleRequest {
+  string timezone = 1;
+  string workweek_start = 2;
+  string effective_from = 3;
+  repeated WorkScheduleDay days = 4;
+}
+message ReplaceActiveWorkScheduleResponse { WorkSchedule schedule = 1; }
+
+message ListScheduleExceptionsRequest {}
+message ListScheduleExceptionsResponse { repeated ScheduleException exceptions = 1; }
+
+message UpsertScheduleExceptionRequest {
+  string date = 1;
+  string kind = 2;
+  int32 expected_minutes = 3;
+  repeated WorkingWindow windows = 4;
+}
+message UpsertScheduleExceptionResponse { ScheduleException exception = 1; }
+
+message DeleteScheduleExceptionRequest { string date = 1; }
+message DeleteScheduleExceptionResponse {}
+
+message ExpectedTimeForDateRequest { string date = 1; }
+message ExpectedTimeForDateResponse { ExpectedTime expected_time = 1; }
+
+message ExpectedTimeForRangeRequest {
+  string start_date = 1;
+  string end_date = 2;
+}
+message ExpectedTimeForRangeResponse { repeated ExpectedTime days = 1; }

@@ -3,6 +3,9 @@ import { buildDays, formatPeriodLabel } from "@/lib/schedule";
 import { periodDayCount } from "@/lib/schedule/date";
 import type { ScheduleItem } from "@/lib/schedule/types";
 
+/** Flat daily target stub until ExpectedTime rewire (DYL-158). */
+const STUB_TARGET_HOURS_PER_DAY = 8;
+
 export interface BuildPeriodExportSummaryOptions {
   categories?: Category[];
 }
@@ -66,7 +69,7 @@ export function buildPeriodExportSummary(
 
   const dayCount = periodDayCount(period);
   const days = buildDays(period.startDate, dayCount);
-  const targetMinutesPerDay = period.targetHoursPerDay * 60;
+  const targetMinutesPerDay = STUB_TARGET_HOURS_PER_DAY * 60;
   const targetMinutes = targetMinutesPerDay * dayCount;
   const actualMinutes = Object.values(periodTotals).reduce(
     (sum, minutes) => sum + minutes,
@@ -91,7 +94,7 @@ export function buildPeriodExportSummary(
     periodLabel: formatPeriodLabel(period),
     startDate: period.startDate,
     endDate: period.endDate,
-    targetHoursPerDay: period.targetHoursPerDay,
+    targetHoursPerDay: STUB_TARGET_HOURS_PER_DAY,
     targetMinutes,
     actualMinutes,
     periodTotals,

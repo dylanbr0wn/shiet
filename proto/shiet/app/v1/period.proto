@@ -19,7 +19,8 @@ message Period {
   string end_date = 3;
   string cadence = 4;
   string anchor_date = 5;
-  double target_hours_per_day = 6;
+  reserved 6;
+  reserved "target_hours_per_day";
   google.protobuf.Timestamp last_synced_at = 7;
 }
 
