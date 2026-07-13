@@ -150,6 +150,24 @@ func (q *Queries) CreateWorkScheduleWindow(ctx context.Context, arg CreateWorkSc
 	return i, err
 }
 
+const deleteScheduleException = `-- name: DeleteScheduleException :exec
+DELETE FROM schedule_exception WHERE id = ?
+`
+
+func (q *Queries) DeleteScheduleException(ctx context.Context, id int64) error {
+	_, err := q.db.ExecContext(ctx, deleteScheduleException, id)
+	return err
+}
+
+const deleteScheduleExceptionWindows = `-- name: DeleteScheduleExceptionWindows :exec
+DELETE FROM schedule_exception_window WHERE schedule_exception_id = ?
+`
+
+func (q *Queries) DeleteScheduleExceptionWindows(ctx context.Context, scheduleExceptionID int64) error {
+	_, err := q.db.ExecContext(ctx, deleteScheduleExceptionWindows, scheduleExceptionID)
+	return err
+}
+
 const getScheduleExceptionByDate = `-- name: GetScheduleExceptionByDate :one
 SELECT id, date, kind, expected_minutes, created_at FROM schedule_exception WHERE date = ?
 `
@@ -173,6 +191,27 @@ SELECT id, timezone, workweek_start, effective_from, effective_to, created_at FR
 
 func (q *Queries) GetWorkSchedule(ctx context.Context, id int64) (WorkSchedule, error) {
 	row := q.db.QueryRowContext(ctx, getWorkSchedule, id)
+	var i WorkSchedule
+	err := row.Scan(
+		&i.ID,
+		&i.Timezone,
+		&i.WorkweekStart,
+		&i.EffectiveFrom,
+		&i.EffectiveTo,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const getWorkScheduleForDate = `-- name: GetWorkScheduleForDate :one
+SELECT id, timezone, workweek_start, effective_from, effective_to, created_at FROM work_schedule
+WHERE effective_from <= ?1
+  AND (effective_to IS NULL OR effective_to > ?1)
+LIMIT 1
+`
+
+func (q *Queries) GetWorkScheduleForDate(ctx context.Context, date string) (WorkSchedule, error) {
+	row := q.db.QueryRowContext(ctx, getWorkScheduleForDate, date)
 	var i WorkSchedule
 	err := row.Scan(
 		&i.ID,
@@ -356,4 +395,56 @@ func (q *Queries) ListWorkSchedules(ctx context.Context) ([]WorkSchedule, error)
 		return nil, err
 	}
 	return items, nil
+}
+
+const updateScheduleException = `-- name: UpdateScheduleException :one
+UPDATE schedule_exception
+SET kind = ?, expected_minutes = ?
+WHERE id = ?
+RETURNING id, date, kind, expected_minutes, created_at
+`
+
+type UpdateScheduleExceptionParams struct {
+	Kind            string `json:"kind"`
+	ExpectedMinutes int64  `json:"expected_minutes"`
+	ID              int64  `json:"id"`
+}
+
+func (q *Queries) UpdateScheduleException(ctx context.Context, arg UpdateScheduleExceptionParams) (ScheduleException, error) {
+	row := q.db.QueryRowContext(ctx, updateScheduleException, arg.Kind, arg.ExpectedMinutes, arg.ID)
+	var i ScheduleException
+	err := row.Scan(
+		&i.ID,
+		&i.Date,
+		&i.Kind,
+		&i.ExpectedMinutes,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const updateWorkScheduleEffectiveTo = `-- name: UpdateWorkScheduleEffectiveTo :one
+UPDATE work_schedule
+SET effective_to = ?
+WHERE id = ?
+RETURNING id, timezone, workweek_start, effective_from, effective_to, created_at
+`
+
+type UpdateWorkScheduleEffectiveToParams struct {
+	EffectiveTo sql.NullString `json:"effective_to"`
+	ID          int64          `json:"id"`
+}
+
+func (q *Queries) UpdateWorkScheduleEffectiveTo(ctx context.Context, arg UpdateWorkScheduleEffectiveToParams) (WorkSchedule, error) {
+	row := q.db.QueryRowContext(ctx, updateWorkScheduleEffectiveTo, arg.EffectiveTo, arg.ID)
+	var i WorkSchedule
+	err := row.Scan(
+		&i.ID,
+		&i.Timezone,
+		&i.WorkweekStart,
+		&i.EffectiveFrom,
+		&i.EffectiveTo,
+		&i.CreatedAt,
+	)
+	return i, err
 }

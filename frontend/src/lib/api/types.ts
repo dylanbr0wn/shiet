@@ -142,8 +142,45 @@ export interface Period {
   endDate: string;
   cadence: string;
   anchorDate: string;
-  targetHoursPerDay: number;
   lastSyncedAt?: string;
+}
+
+export interface WorkingWindow {
+  startMinutes: number;
+  endMinutes: number;
+}
+
+export interface WorkScheduleDay {
+  weekday: string;
+  expectedMinutes: number;
+  windows: WorkingWindow[];
+}
+
+export interface WorkSchedule {
+  id: number;
+  timezone: string;
+  workweekStart: string;
+  effectiveFrom: string;
+  effectiveTo?: string;
+  days: WorkScheduleDay[];
+}
+
+export interface ScheduleException {
+  id: number;
+  date: string;
+  kind: string;
+  expectedMinutes: number;
+  windows: WorkingWindow[];
+}
+
+export interface ExpectedTime {
+  date: string;
+  expectedMinutes: number;
+  windows: WorkingWindow[];
+  source: string;
+  exceptionKind?: string;
+  timezone?: string;
+  workweekStart?: string;
 }
 
 export interface Event {

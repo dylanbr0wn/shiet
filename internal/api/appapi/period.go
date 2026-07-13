@@ -77,12 +77,11 @@ func (s *PeriodService) EnsureCurrentPeriod(ctx context.Context, req *connect.Re
 
 func toProtoPeriod(period service.Period) *appv1.Period {
 	out := &appv1.Period{
-		Id:                period.ID,
-		StartDate:         period.StartDate,
-		EndDate:           period.EndDate,
-		Cadence:           period.Cadence,
-		AnchorDate:        period.AnchorDate,
-		TargetHoursPerDay: period.TargetHoursPerDay,
+		Id:         period.ID,
+		StartDate:  period.StartDate,
+		EndDate:    period.EndDate,
+		Cadence:    period.Cadence,
+		AnchorDate: period.AnchorDate,
 	}
 	if period.LastSyncedAt != nil {
 		out.LastSyncedAt = timestamppb.New(*period.LastSyncedAt)

@@ -16,7 +16,6 @@ const period: Period = {
   endDate: "2026-06-02",
   cadence: "weekly",
   anchorDate: "2026-06-01",
-  targetHoursPerDay: 8,
 };
 
 const items: ScheduleItem[] = [

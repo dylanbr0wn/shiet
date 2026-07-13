@@ -45,13 +45,12 @@ type EventCategoryOverlay struct {
 
 // Period is a live, editable pay-period working record.
 type Period struct {
-	ID                int64      `json:"id"`
-	StartDate         string     `json:"startDate"` // YYYY-MM-DD, inclusive
-	EndDate           string     `json:"endDate"`   // YYYY-MM-DD, inclusive
-	Cadence           string     `json:"cadence"`
-	AnchorDate        string     `json:"anchorDate"`
-	TargetHoursPerDay float64    `json:"targetHoursPerDay"`
-	LastSyncedAt      *time.Time `json:"lastSyncedAt,omitempty"`
+	ID           int64      `json:"id"`
+	StartDate    string     `json:"startDate"` // YYYY-MM-DD, inclusive
+	EndDate      string     `json:"endDate"`   // YYYY-MM-DD, inclusive
+	Cadence      string     `json:"cadence"`
+	AnchorDate   string     `json:"anchorDate"`
+	LastSyncedAt *time.Time `json:"lastSyncedAt,omitempty"`
 }
 
 // TzSegment is a date-anchored timezone segment within a period.
@@ -233,13 +232,12 @@ func toProject(r sqlc.Project) Project {
 
 func toPeriod(r sqlc.Period) Period {
 	return Period{
-		ID:                r.ID,
-		StartDate:         r.StartDate,
-		EndDate:           r.EndDate,
-		Cadence:           r.Cadence,
-		AnchorDate:        r.AnchorDate,
-		TargetHoursPerDay: stubTargetHoursPerDay,
-		LastSyncedAt:      parseTimePtr(r.LastSyncedAt),
+		ID:           r.ID,
+		StartDate:    r.StartDate,
+		EndDate:      r.EndDate,
+		Cadence:      r.Cadence,
+		AnchorDate:   r.AnchorDate,
+		LastSyncedAt: parseTimePtr(r.LastSyncedAt),
 	}
 }
 

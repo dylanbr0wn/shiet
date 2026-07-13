@@ -50,7 +50,6 @@ export function mapPeriod(period: WirePeriod): Period {
     endDate: period.endDate,
     cadence: period.cadence,
     anchorDate: period.anchorDate,
-    targetHoursPerDay: period.targetHoursPerDay,
     ...(period.lastSyncedAt
       ? {
           lastSyncedAt: new Date(

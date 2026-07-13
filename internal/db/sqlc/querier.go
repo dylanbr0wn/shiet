@@ -41,6 +41,8 @@ type Querier interface {
 	DeleteOverlay(ctx context.Context, id int64) error
 	DeletePeriod(ctx context.Context, id int64) error
 	DeleteProject(ctx context.Context, id int64) error
+	DeleteScheduleException(ctx context.Context, id int64) error
+	DeleteScheduleExceptionWindows(ctx context.Context, scheduleExceptionID int64) error
 	DeleteSlackChannelsByAccount(ctx context.Context, accountID string) error
 	DeleteTimeEntry(ctx context.Context, arg DeleteTimeEntryParams) (int64, error)
 	DeleteTzSegment(ctx context.Context, id int64) error
@@ -70,6 +72,7 @@ type Querier interface {
 	GetSlackChannel(ctx context.Context, id int64) (SlackChannel, error)
 	GetTimeEntry(ctx context.Context, arg GetTimeEntryParams) (TimeEntry, error)
 	GetWorkSchedule(ctx context.Context, id int64) (WorkSchedule, error)
+	GetWorkScheduleForDate(ctx context.Context, date string) (WorkSchedule, error)
 	ListAllCategories(ctx context.Context) ([]Category, error)
 	ListAllEventsForPeriod(ctx context.Context, periodID int64) ([]Event, error)
 	ListAllProjects(ctx context.Context) ([]Project, error)
@@ -126,8 +129,10 @@ type Querier interface {
 	UpdateExportTemplate(ctx context.Context, arg UpdateExportTemplateParams) (ExportTemplate, error)
 	UpdateIntegrationConnectionStatus(ctx context.Context, arg UpdateIntegrationConnectionStatusParams) error
 	UpdateProject(ctx context.Context, arg UpdateProjectParams) (Project, error)
+	UpdateScheduleException(ctx context.Context, arg UpdateScheduleExceptionParams) (ScheduleException, error)
 	UpdateTimeEntry(ctx context.Context, arg UpdateTimeEntryParams) (TimeEntry, error)
 	UpdateTimeEntrySpan(ctx context.Context, arg UpdateTimeEntrySpanParams) (TimeEntry, error)
+	UpdateWorkScheduleEffectiveTo(ctx context.Context, arg UpdateWorkScheduleEffectiveToParams) (WorkSchedule, error)
 	UpsertBitbucketRepo(ctx context.Context, arg UpsertBitbucketRepoParams) (BitbucketRepo, error)
 	UpsertBitbucketWorkspace(ctx context.Context, arg UpsertBitbucketWorkspaceParams) (BitbucketWorkspace, error)
 	UpsertCalendar(ctx context.Context, arg UpsertCalendarParams) (Calendar, error)

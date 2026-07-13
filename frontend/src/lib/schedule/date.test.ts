@@ -38,7 +38,6 @@ describe("schedule dates", () => {
       endDate: "2026-06-21",
       cadence: "bi_weekly",
       anchorDate: "2026-06-08",
-      targetHoursPerDay: 6,
     };
 
     expect(periodDayCount(period)).toBe(14);

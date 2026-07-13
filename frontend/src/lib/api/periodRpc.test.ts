@@ -11,7 +11,6 @@ describe("mapPeriod", () => {
       endDate: "2026-07-19",
       cadence: "bi-weekly",
       anchorDate: "2026-07-06",
-      targetHoursPerDay: 8,
     } as WirePeriod);
 
     expect(result).toEqual({
@@ -20,7 +19,6 @@ describe("mapPeriod", () => {
       endDate: "2026-07-19",
       cadence: "bi-weekly",
       anchorDate: "2026-07-06",
-      targetHoursPerDay: 8,
     });
   });
 

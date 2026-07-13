@@ -380,7 +380,6 @@ describe("schedule mappers", () => {
       endDate: "2026-06-14",
       cadence: "weekly",
       anchorDate: "2026-06-08",
-      targetHoursPerDay: 6,
     };
 
     expect(periodContainsDate(period, "2026-06-08")).toBe(true);

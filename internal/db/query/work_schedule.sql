@@ -10,6 +10,18 @@ ORDER BY effective_from;
 -- name: GetWorkSchedule :one
 SELECT * FROM work_schedule WHERE id = ?;
 
+-- name: GetWorkScheduleForDate :one
+SELECT * FROM work_schedule
+WHERE effective_from <= sqlc.arg(date)
+  AND (effective_to IS NULL OR effective_to > sqlc.arg(date))
+LIMIT 1;
+
+-- name: UpdateWorkScheduleEffectiveTo :one
+UPDATE work_schedule
+SET effective_to = ?
+WHERE id = ?
+RETURNING *;
+
 -- name: CountWorkSchedules :one
 SELECT COUNT(*) FROM work_schedule;
 
@@ -46,6 +58,18 @@ SELECT * FROM schedule_exception WHERE date = ?;
 
 -- name: ListScheduleExceptions :many
 SELECT * FROM schedule_exception ORDER BY date;
+
+-- name: UpdateScheduleException :one
+UPDATE schedule_exception
+SET kind = ?, expected_minutes = ?
+WHERE id = ?
+RETURNING *;
+
+-- name: DeleteScheduleException :exec
+DELETE FROM schedule_exception WHERE id = ?;
+
+-- name: DeleteScheduleExceptionWindows :exec
+DELETE FROM schedule_exception_window WHERE schedule_exception_id = ?;
 
 -- name: CreateScheduleExceptionWindow :one
 INSERT INTO schedule_exception_window (schedule_exception_id, start_minutes, end_minutes)
