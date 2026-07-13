@@ -48,6 +48,7 @@ import {
   refreshSlackChannels,
   refreshBitbucketResources,
   resolveReviewDecision,
+  listGapEvidence,
   revealLogFolder,
   saveAIConfig,
   saveAIEndpoint,
@@ -379,6 +380,12 @@ export function useCreateGapFill() {
 export function useSuggestGapFill() {
   return useMutation({
     mutationFn: (window: TimeWindow) => suggestGapFill(window),
+  });
+}
+
+export function useListGapEvidence() {
+  return useMutation({
+    mutationFn: (window: TimeWindow) => listGapEvidence(window),
   });
 }
 

@@ -18,6 +18,7 @@ import {
   type Event as WireEvent,
   type ExportTemplate as WireExportTemplate,
   type GapFill as WireGapFill,
+  type GapEvidenceItem as WireGapEvidenceItem,
   type GitHubRepo as WireGitHubRepo,
   type BitbucketRepo as WireBitbucketRepo,
   type BitbucketWorkspace as WireBitbucketWorkspace,
@@ -40,6 +41,7 @@ import type {
   ExportFieldInfo,
   ExportTemplate,
   GapFill,
+  GapEvidenceItem,
   GapSuggestion,
   GitHubRepo,
   IntegrationAuthStatus,
@@ -205,6 +207,14 @@ export async function listTzSegmentsRPC(periodId: number): Promise<TzSegment[]> 
 export async function computeGapsRPC(periodId: number) {
   return (await scheduleClient().computeGaps({ periodId: bigint(periodId) })).days.map(mapDayTimeline);
 }
+export async function listGapEvidenceRPC(window: TimeWindow): Promise<GapEvidenceItem[]> {
+  const response = await scheduleClient().listGapEvidence({
+    start: timestampFromDate(new Date(window.start)),
+    end: timestampFromDate(new Date(window.end)),
+  });
+  return response.items.map(mapGapEvidenceItem);
+}
+
 export async function suggestGapFillRPC(window: TimeWindow): Promise<GapSuggestion> {
   return scheduleClient().suggestGapFill({ start: timestampFromDate(new Date(window.start)), end: timestampFromDate(new Date(window.end)) });
 }
@@ -307,6 +317,14 @@ function mapEvent(item: WireEvent): Event {
 }
 function mapGapFill(item: WireGapFill): GapFill {
   return { id: safeInt(item.id, "gap fill id"), periodId: safeInt(item.periodId, "period id"), day: item.day, start: item.start, end: item.end, source: item.source, ...(item.categoryId == null ? {} : { categoryId: safeInt(item.categoryId, "category id") }), ...(item.note ? { note: item.note } : {}), ...(item.description ? { description: item.description } : {}) };
+}
+function mapGapEvidenceItem(item: WireGapEvidenceItem): GapEvidenceItem {
+  return {
+    provider: item.provider,
+    kind: item.kind,
+    summary: item.summary,
+    source: item.source,
+  };
 }
 export function mapReviewDecision(item: WireReviewDecision): ReviewDecision {
   return { id: safeInt(item.id, "review decision id"), kind: item.kind, tag: item.tag, title: item.title, description: item.description, ...(item.eventId == null ? {} : { eventId: safeInt(item.eventId, "event id") }), actions: item.actions.map((action) => ({ key: action.key, label: action.label, role: mapReviewRole(action.role), ...mapReviewVariant(action.variant) })) };

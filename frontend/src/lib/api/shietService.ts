@@ -11,6 +11,7 @@ import type {
   EventCategoryOverlay,
   ExcludeEventInput,
   GapFill,
+  GapEvidenceItem,
   GitHubRepo,
   BitbucketRepo,
   BitbucketWorkspace,
@@ -69,6 +70,7 @@ import {
   listExportFieldCatalogRPC,
   listExportTemplatesRPC,
   listGapFillsRPC,
+  listGapEvidenceRPC,
   listGitHubReposRPC,
   listBitbucketWorkspacesRPC,
   listBitbucketReposRPC,
@@ -573,6 +575,10 @@ export function setCalendarDefaultCategory(
   categoryID: number | null,
 ) {
   return writeToPortableBackend(() => setCalendarDefaultCategoryRPC(calendarID, categoryID));
+}
+
+export function listGapEvidence(window: TimeWindow) {
+  return writeToPortableBackend(() => listGapEvidenceRPC(window));
 }
 
 export function suggestGapFill(window: TimeWindow) {
