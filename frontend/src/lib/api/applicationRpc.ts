@@ -20,6 +20,8 @@ import {
   type GapFill as WireGapFill,
   type GapEvidenceItem as WireGapEvidenceItem,
   type GitHubRepo as WireGitHubRepo,
+  type BitbucketRepo as WireBitbucketRepo,
+  type BitbucketWorkspace as WireBitbucketWorkspace,
   type IntegrationConnection as WireIntegrationConnection,
   type IntegrationDescriptor as WireIntegrationDescriptor,
   type GetIntegrationAuthStatusResponse as WireIntegrationAuthStatus,
@@ -56,6 +58,8 @@ import type {
   ResolveReviewDecisionInput,
   ResolveReviewDecisionResult,
   ReviewDecision,
+  BitbucketRepo,
+  BitbucketWorkspace,
   SlackChannel,
   SyncResult,
   TimeWindow,
@@ -95,8 +99,8 @@ function iso(timestamp: Timestamp | undefined, field: string) {
 
 const bigint = (value: number) => BigInt(value);
 
-export async function listCategoriesRPC() {
-  return (await categoryClient().listCategories({})).categories.map(mapCategory);
+export async function listCategoriesRPC(includeArchived = false) {
+  return (await categoryClient().listCategories({ includeArchived })).categories.map(mapCategory);
 }
 export async function getCategoryRPC(id: number) {
   const response = await categoryClient().getCategory({ id: bigint(id) });
@@ -115,6 +119,11 @@ export async function updateCategoryRPC(input: UpdateCategoryInput) {
 }
 export async function deleteCategoryRPC(id: number) {
   await categoryClient().deleteCategory({ id: bigint(id) });
+}
+export async function archiveCategoryRPC(id: number) {
+  const response = await categoryClient().archiveCategory({ id: bigint(id) });
+  if (!response.category) throw new Error("archive category response is missing category");
+  return mapCategory(response.category);
 }
 export async function listEventCategoryOverlaysRPC(periodId: number): Promise<EventCategoryOverlay[]> {
   const response = await categoryClient().listEventCategoryOverlays({ periodId: bigint(periodId) });
@@ -246,6 +255,11 @@ export async function refreshGitHubReposRPC(accountId: string) { await integrati
 export async function listSlackChannelsRPC() { return (await integrationClient().listSlackChannels({})).channels.map(mapSlackChannel); }
 export async function setSlackChannelSelectedRPC(channelId: number, selected: boolean) { await integrationClient().setSlackChannelSelected({ channelId: bigint(channelId), selected }); }
 export async function refreshSlackChannelsRPC(accountId: string) { await integrationClient().refreshSlackChannels({ accountId }); }
+export async function listBitbucketWorkspacesRPC() { return (await integrationClient().listBitbucketWorkspaces({})).workspaces.map(mapBitbucketWorkspace); }
+export async function setBitbucketWorkspaceSelectedRPC(workspaceId: number, selected: boolean) { await integrationClient().setBitbucketWorkspaceSelected({ workspaceId: bigint(workspaceId), selected }); }
+export async function listBitbucketReposRPC() { return (await integrationClient().listBitbucketRepos({})).repos.map(mapBitbucketRepo); }
+export async function setBitbucketRepoSelectedRPC(repoId: number, selected: boolean) { await integrationClient().setBitbucketRepoSelected({ repoId: bigint(repoId), selected }); }
+export async function refreshBitbucketResourcesRPC(accountId: string) { await integrationClient().refreshBitbucketResources({ accountId }); }
 
 export async function renderPeriodExportRPC(periodId: number, templateKey: string): Promise<PeriodExportRender> {
   return exportClient().renderPeriodExport({ periodId: bigint(periodId), templateKey });
@@ -283,7 +297,16 @@ export async function listExportFieldCatalogRPC(grain: string, layout: string): 
 }
 
 export function mapCategory(item: WireCategory): Category {
-  return { id: safeInt(item.id, "category id"), name: item.name, description: item.description, key: item.key, color: item.color, isDefaultGap: item.isDefaultGap };
+  return {
+    id: safeInt(item.id, "category id"),
+    name: item.name,
+    description: item.description,
+    key: item.key,
+    color: item.color,
+    isDefaultGap: item.isDefaultGap,
+    archived: item.archived,
+    inUse: item.inUse,
+  };
 }
 function mapCalendar(item: WireCalendar): Calendar {
   return { id: safeInt(item.id, "calendar id"), provider: item.provider, externalId: item.externalId, name: item.name, isPrimary: item.isPrimary, selected: item.selected, ...(item.defaultCategoryId == null ? {} : { defaultCategoryId: safeInt(item.defaultCategoryId, "default category id") }) };
@@ -354,6 +377,8 @@ function mapIntegrationAuthStatus(item: WireIntegrationAuthStatus): IntegrationA
 }
 function mapGitHubRepo(item: WireGitHubRepo): GitHubRepo { return { id: safeInt(item.id, "repository id"), accountId: item.accountId, externalId: item.externalId, name: item.name, fullName: item.fullName, private: item.private, selected: item.selected }; }
 function mapSlackChannel(item: WireSlackChannel): SlackChannel { return { id: safeInt(item.id, "channel id"), accountId: item.accountId, externalId: item.externalId, name: item.name, private: item.private, selected: item.selected }; }
+function mapBitbucketWorkspace(item: WireBitbucketWorkspace): BitbucketWorkspace { return { id: safeInt(item.id, "workspace id"), accountId: item.accountId, externalId: item.externalId, slug: item.slug, name: item.name, selected: item.selected }; }
+function mapBitbucketRepo(item: WireBitbucketRepo): BitbucketRepo { return { id: safeInt(item.id, "repository id"), accountId: item.accountId, workspaceUuid: item.workspaceUuid, externalId: item.externalId, name: item.name, fullName: item.fullName, private: item.private, selected: item.selected }; }
 function mapExportTemplate(item: WireExportTemplate): ExportTemplate { return { id: safeInt(item.id, "export template id"), key: item.key, name: item.name, description: item.description, format: item.format, builtin: item.builtin, body: item.body }; }
 export function mapPeriodExportModel(item: WirePeriodExportModel): PeriodExportModel {
   const category = (value: WirePeriodExportModel["periodTotals"][number]["category"]) => value ? ({ ...(value.id == null ? {} : { id: safeInt(value.id, "export category id") }), name: value.name, key: value.key, ...(value.color ? { color: value.color } : {}) }) : ({ name: "", key: "" });

@@ -56,12 +56,57 @@ func (s *Service) ListCategories(ctx context.Context) ([]Category, error) {
 	return out, nil
 }
 
+// ListAllCategories returns active and archived categories, with InUse set
+// from live references (overlay, memory, calendar default, gap_fill).
+func (s *Service) ListAllCategories(ctx context.Context) ([]Category, error) {
+	rows, err := s.q.ListAllCategories(ctx)
+	if err != nil {
+		return nil, mapErr("list all categories", err)
+	}
+	out := make([]Category, len(rows))
+	for i, r := range rows {
+		cat := toCategory(r)
+		inUse, err := s.categoryInUse(ctx, cat.ID)
+		if err != nil {
+			return nil, err
+		}
+		cat.InUse = inUse
+		out[i] = cat
+	}
+	return out, nil
+}
+
 func (s *Service) GetCategory(ctx context.Context, id int64) (Category, error) {
 	r, err := s.q.GetCategory(ctx, id)
 	if err != nil {
 		return Category{}, mapErr("get category", err)
 	}
 	return toCategory(r), nil
+}
+
+func (s *Service) categoryInUse(ctx context.Context, id int64) (bool, error) {
+	ref := sql.NullInt64{Int64: id, Valid: true}
+	if count, err := s.q.CountOverlayReferencesToCategory(ctx, ref); err != nil {
+		return false, mapErr("category in use", err)
+	} else if count > 0 {
+		return true, nil
+	}
+	if count, err := s.q.CountMemoryReferencesToCategory(ctx, id); err != nil {
+		return false, mapErr("category in use", err)
+	} else if count > 0 {
+		return true, nil
+	}
+	if count, err := s.q.CountCalendarReferencesToCategory(ctx, ref); err != nil {
+		return false, mapErr("category in use", err)
+	} else if count > 0 {
+		return true, nil
+	}
+	if count, err := s.q.CountGapFillReferencesToCategory(ctx, ref); err != nil {
+		return false, mapErr("category in use", err)
+	} else if count > 0 {
+		return true, nil
+	}
+	return false, nil
 }
 
 // ListEventCategoryOverlays returns category decisions for imported events in a period.
@@ -195,6 +240,62 @@ func (s *Service) SetSlackChannelSelected(ctx context.Context, channelID int64, 
 		ID:       channelID,
 	}); err != nil {
 		return mapErr("set slack channel selected", err)
+	}
+	return nil
+}
+
+// ListBitbucketWorkspaces returns synced Bitbucket workspaces for evidence selection.
+func (s *Service) ListBitbucketWorkspaces(ctx context.Context) ([]BitbucketWorkspace, error) {
+	rows, err := s.q.ListBitbucketWorkspaces(ctx)
+	if err != nil {
+		return nil, mapErr("list bitbucket workspaces", err)
+	}
+	out := make([]BitbucketWorkspace, len(rows))
+	for i, r := range rows {
+		out[i] = toBitbucketWorkspace(r)
+	}
+	return out, nil
+}
+
+// SetBitbucketWorkspaceSelected toggles whether a workspace is included as an evidence source.
+func (s *Service) SetBitbucketWorkspaceSelected(ctx context.Context, workspaceID int64, selected bool) error {
+	sel := int64(0)
+	if selected {
+		sel = 1
+	}
+	if err := s.q.SetBitbucketWorkspaceSelected(ctx, sqlc.SetBitbucketWorkspaceSelectedParams{
+		Selected: sel,
+		ID:       workspaceID,
+	}); err != nil {
+		return mapErr("set bitbucket workspace selected", err)
+	}
+	return nil
+}
+
+// ListBitbucketRepos returns synced Bitbucket repositories for evidence selection.
+func (s *Service) ListBitbucketRepos(ctx context.Context) ([]BitbucketRepo, error) {
+	rows, err := s.q.ListBitbucketRepos(ctx)
+	if err != nil {
+		return nil, mapErr("list bitbucket repos", err)
+	}
+	out := make([]BitbucketRepo, len(rows))
+	for i, r := range rows {
+		out[i] = toBitbucketRepo(r)
+	}
+	return out, nil
+}
+
+// SetBitbucketRepoSelected toggles whether a repo is included as an evidence source.
+func (s *Service) SetBitbucketRepoSelected(ctx context.Context, repoID int64, selected bool) error {
+	sel := int64(0)
+	if selected {
+		sel = 1
+	}
+	if err := s.q.SetBitbucketRepoSelected(ctx, sqlc.SetBitbucketRepoSelectedParams{
+		Selected: sel,
+		ID:       repoID,
+	}); err != nil {
+		return mapErr("set bitbucket repo selected", err)
 	}
 	return nil
 }

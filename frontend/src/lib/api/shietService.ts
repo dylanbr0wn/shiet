@@ -13,6 +13,8 @@ import type {
   GapFill,
   GapEvidenceItem,
   GitHubRepo,
+  BitbucketRepo,
+  BitbucketWorkspace,
   GoogleAuthStatus,
   IntegrationAuthStatus,
   IntegrationConnection,
@@ -50,6 +52,7 @@ import {
   createGapFillRPC,
   createManualEventRPC,
   deleteCategoryRPC,
+  archiveCategoryRPC,
   deleteExportTemplateRPC,
   deleteManualEventRPC,
   disconnectIntegrationRPC,
@@ -69,6 +72,8 @@ import {
   listGapFillsRPC,
   listGapEvidenceRPC,
   listGitHubReposRPC,
+  listBitbucketWorkspacesRPC,
+  listBitbucketReposRPC,
   listIntegrationConnectionsRPC,
   listIntegrationProvidersRPC,
   listReviewDecisionsRPC,
@@ -78,6 +83,7 @@ import {
   previewExportRPC,
   refreshGitHubReposRPC,
   refreshSlackChannelsRPC,
+  refreshBitbucketResourcesRPC,
   renderPeriodExportRPC,
   resolveReviewDecisionRPC,
   setCalendarDefaultCategoryRPC,
@@ -85,6 +91,8 @@ import {
   setGitHubRepoSelectedRPC,
   setSettingRPC,
   setSlackChannelSelectedRPC,
+  setBitbucketWorkspaceSelectedRPC,
+  setBitbucketRepoSelectedRPC,
   suggestGapFillRPC,
   syncPeriodRPC,
   updateCategoryRPC,
@@ -201,8 +209,10 @@ export function ensureCurrentPeriod(today: string, ianaTz: string) {
   );
 }
 
-export function listCategories() {
-  return readFromPortableBackend<Category[]>([], listCategoriesRPC);
+export function listCategories(includeArchived = false) {
+  return readFromPortableBackend<Category[]>([], () =>
+    listCategoriesRPC(includeArchived),
+  );
 }
 
 export function getCategory(id: number) {
@@ -219,6 +229,10 @@ export function updateCategory(input: UpdateCategoryInput) {
 
 export function deleteCategory(id: number) {
   return writeToPortableBackend(() => deleteCategoryRPC(id));
+}
+
+export function archiveCategory(id: number) {
+  return writeToPortableBackend(() => archiveCategoryRPC(id));
 }
 
 export function listEventCategoryOverlays(periodId: number) {
@@ -512,6 +526,44 @@ export function setSlackChannelSelected(channelID: number, selected: boolean) {
 
 export function refreshSlackChannels(accountID: string) {
   return writeToPortableBackend(() => refreshSlackChannelsRPC(accountID));
+}
+
+export function connectBitbucket() {
+  return connectIntegration({ provider: "bitbucket" });
+}
+
+export function bitbucketAuthMode() {
+  return getIntegrationAuthStatus("bitbucket").then((status) => status.mode);
+}
+
+export function bitbucketOAuthAvailable() {
+  return getIntegrationAuthStatus("bitbucket").then((status) => status.oauthAvailable);
+}
+
+export function disconnectBitbucket(accountID: string) {
+  return disconnectIntegration("bitbucket", accountID);
+}
+
+export function listBitbucketWorkspaces() {
+  return readFromPortableBackend<BitbucketWorkspace[]>([], listBitbucketWorkspacesRPC);
+}
+
+export function listBitbucketRepos() {
+  return readFromPortableBackend<BitbucketRepo[]>([], listBitbucketReposRPC);
+}
+
+export function setBitbucketWorkspaceSelected(workspaceID: number, selected: boolean) {
+  return writeToPortableBackend(() =>
+    setBitbucketWorkspaceSelectedRPC(workspaceID, selected),
+  );
+}
+
+export function setBitbucketRepoSelected(repoID: number, selected: boolean) {
+  return writeToPortableBackend(() => setBitbucketRepoSelectedRPC(repoID, selected));
+}
+
+export function refreshBitbucketResources(accountID: string) {
+  return writeToPortableBackend(() => refreshBitbucketResourcesRPC(accountID));
 }
 
 export function setCalendarSelected(calendarID: number, selected: boolean) {
