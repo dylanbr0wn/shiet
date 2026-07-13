@@ -3,14 +3,14 @@ import {
   useCategories,
   useEventCategoryOverlays,
   useEvents,
-  useGapFills,
+  useTimeEntries,
   useTzSegments,
   type Period,
 } from "@/lib/api";
 import {
   buildEventCategoryOverlayMap,
   eventToSchedulerItem,
-  gapFillToSchedulerItem,
+  timeEntryToSchedulerItem,
   resolveEventCategoryId,
 } from "@/lib/schedule";
 import { buildPeriodExportSummary } from "./summary";
@@ -19,7 +19,7 @@ export function usePeriodExport(period: Period | null | undefined) {
   const periodId = period?.id;
   const eventsQuery = useEvents(periodId);
   const eventCategoryOverlaysQuery = useEventCategoryOverlays(periodId);
-  const gapFillsQuery = useGapFills(periodId);
+  const timeEntriesQuery = useTimeEntries(periodId);
   const tzSegmentsQuery = useTzSegments(periodId);
   const categoriesQuery = useCategories();
 
@@ -31,7 +31,7 @@ export function usePeriodExport(period: Period | null | undefined) {
 
   const items = useMemo(() => {
     const events = eventsQuery.data ?? [];
-    const gapFills = gapFillsQuery.data ?? [];
+    const timeEntries = timeEntriesQuery.data ?? [];
     const tzSegments = tzSegmentsQuery.data ?? [];
     const overlaysByKey = buildEventCategoryOverlayMap(
       eventCategoryOverlaysQuery.data ?? [],
@@ -48,9 +48,9 @@ export function usePeriodExport(period: Period | null | undefined) {
           ),
         )
         .filter((item): item is NonNullable<typeof item> => item !== null),
-      ...gapFills
-        .map((gapFill) =>
-          gapFillToSchedulerItem(gapFill, categoriesById, tzSegments),
+      ...timeEntries
+        .map((timeEntry) =>
+          timeEntryToSchedulerItem(timeEntry, categoriesById, tzSegments),
         )
         .filter((item): item is NonNullable<typeof item> => item !== null),
     ];
@@ -58,7 +58,7 @@ export function usePeriodExport(period: Period | null | undefined) {
     categoriesById,
     eventCategoryOverlaysQuery.data,
     eventsQuery.data,
-    gapFillsQuery.data,
+    timeEntriesQuery.data,
     tzSegmentsQuery.data,
   ]);
 
@@ -83,13 +83,13 @@ export function usePeriodExport(period: Period | null | undefined) {
   const isLoading =
     eventsQuery.isLoading ||
     eventCategoryOverlaysQuery.isLoading ||
-    gapFillsQuery.isLoading ||
+    timeEntriesQuery.isLoading ||
     tzSegmentsQuery.isLoading ||
     categoriesQuery.isLoading;
   const error =
     eventsQuery.error ??
     eventCategoryOverlaysQuery.error ??
-    gapFillsQuery.error ??
+    timeEntriesQuery.error ??
     tzSegmentsQuery.error ??
     categoriesQuery.error;
 

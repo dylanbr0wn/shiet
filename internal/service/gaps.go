@@ -54,7 +54,7 @@ func (s *Service) ComputeGaps(ctx context.Context, periodID int64) ([]DayTimelin
 	if err != nil {
 		return nil, err
 	}
-	fills, err := s.ListGapFills(ctx, periodID)
+	fills, err := s.ListTimeEntries(ctx, periodID)
 	if err != nil {
 		return nil, err
 	}

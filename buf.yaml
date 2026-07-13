@@ -5,5 +5,7 @@ lint:
   use:
     - STANDARD
 breaking:
+  # Same-origin desktop Connect: allow RPC/message renames (e.g. TimeEntry cutover).
+  # Still guards binary wire compatibility for retained messages/fields.
   use:
-    - FILE
+    - WIRE

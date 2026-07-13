@@ -3,7 +3,7 @@ import type {
   DayTimeline,
   Event as ShietEvent,
   EventCategoryOverlay,
-  GapFill,
+  TimeEntry,
   Interval,
   Period,
   TzSegment,
@@ -29,7 +29,7 @@ import type {
 import {
   allDayChipId,
   eventItemId,
-  gapFillItemId,
+  timeEntryItemId,
 } from "./ids";
 
 export interface EventReviewState {
@@ -273,15 +273,15 @@ export function buildAllDayChipsByDay(
   return chipsByDay;
 }
 
-export function gapFillToSchedulerItem(
-  gapFill: GapFill,
+export function timeEntryToSchedulerItem(
+  timeEntry: TimeEntry,
   categoriesById: Map<number, Category>,
   tzSegments: TzSegment[],
   placement?: SchedulePlacement,
 ): ScheduleItem | null {
-  const timeZone = activeTimeZoneForDay(gapFill.day, tzSegments);
-  const startDate = toDate(gapFill.start);
-  const endDate = toDate(gapFill.end);
+  const timeZone = activeTimeZoneForDay(timeEntry.localWorkDate, tzSegments);
+  const startDate = toDate(timeEntry.start);
+  const endDate = toDate(timeEntry.end);
 
   if (!startDate || !endDate) {
     return null;
@@ -292,20 +292,20 @@ export function gapFillToSchedulerItem(
   const startMinutes = start.minutes;
   const endMinutes =
     end.day === start.day ? end.minutes : SCHEDULE_END_MINUTES;
-  const category = categoryName(gapFill.categoryId, categoriesById);
-  const kind = gapFill.source === "manual" ? "manual" : "gap";
+  const category = categoryName(timeEntry.categoryId, categoriesById);
+  const kind = timeEntry.method === "gap_fill" ? "gap" : "manual";
 
   return applyPlacement(
     {
-      id: gapFillItemId(gapFill.id),
-      day: gapFill.day || start.day,
+      id: timeEntryItemId(timeEntry.id),
+      day: timeEntry.localWorkDate || start.day,
       startMinutes,
       endMinutes: Math.max(startMinutes + 15, endMinutes),
       metadata: {
-        title: gapFill.note || category,
+        title: timeEntry.description || category,
         category,
-        categoryId: gapFill.categoryId,
-        categoryColor: resolveCategoryColor(gapFill.categoryId, categoriesById),
+        categoryId: timeEntry.categoryId,
+        categoryColor: resolveCategoryColor(timeEntry.categoryId, categoriesById),
         kind,
         mutable: true,
         excludable: false,

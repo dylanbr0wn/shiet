@@ -27,11 +27,12 @@ service CalendarService {
 service ScheduleService {
   rpc ListEvents(ListEventsRequest) returns (ListEventsResponse);
   rpc GetEvent(GetEventRequest) returns (GetEventResponse);
-  rpc ListGapFills(ListGapFillsRequest) returns (ListGapFillsResponse);
-  rpc CreateManualEvent(CreateManualEventRequest) returns (CreateManualEventResponse);
-  rpc CreateGapFill(CreateGapFillRequest) returns (CreateGapFillResponse);
-  rpc UpdateManualEvent(UpdateManualEventRequest) returns (UpdateManualEventResponse);
-  rpc DeleteManualEvent(DeleteManualEventRequest) returns (DeleteManualEventResponse);
+  rpc ListTimeEntries(ListTimeEntriesRequest) returns (ListTimeEntriesResponse);
+  rpc GetTimeEntry(GetTimeEntryRequest) returns (GetTimeEntryResponse);
+  rpc CreateTimeEntry(CreateTimeEntryRequest) returns (CreateTimeEntryResponse);
+  rpc CreateGapTimeEntry(CreateGapTimeEntryRequest) returns (CreateGapTimeEntryResponse);
+  rpc UpdateTimeEntry(UpdateTimeEntryRequest) returns (UpdateTimeEntryResponse);
+  rpc DeleteTimeEntry(DeleteTimeEntryRequest) returns (DeleteTimeEntryResponse);
   rpc ListReviewDecisions(ListReviewDecisionsRequest) returns (ListReviewDecisionsResponse);
   rpc ResolveReviewDecision(ResolveReviewDecisionRequest) returns (ResolveReviewDecisionResponse);
   rpc ExcludeEvent(ExcludeEventRequest) returns (ExcludeEventResponse);
@@ -184,36 +185,41 @@ message ListEventsRequest { int64 period_id = 1; }
 message ListEventsResponse { repeated Event events = 1; }
 message GetEventRequest { int64 id = 1; }
 message GetEventResponse { Event event = 1; }
-message GapFill {
+message TimeEntry {
   int64 id = 1;
   int64 period_id = 2;
-  string day = 3;
+  string local_work_date = 3;
   string start = 4;
   string end = 5;
-  optional int64 category_id = 6;
-  string note = 7;
+  int32 duration_minutes = 6;
+  optional int64 category_id = 7;
   string description = 8;
-  string source = 9;
+  string attestation = 9;
+  string method = 10;
 }
-message ListGapFillsRequest { int64 period_id = 1; }
-message ListGapFillsResponse { repeated GapFill gap_fills = 1; }
-message ManualEventInput {
+message ListTimeEntriesRequest { int64 period_id = 1; }
+message ListTimeEntriesResponse { repeated TimeEntry time_entries = 1; }
+message GetTimeEntryRequest {
+  int64 id = 1;
+  int64 period_id = 2;
+}
+message GetTimeEntryResponse { TimeEntry time_entry = 1; }
+message TimeEntryInput {
   int64 period_id = 1;
   string day = 2;
   int32 start_minutes = 3;
   int32 end_minutes = 4;
   optional int64 category_id = 5;
-  string note = 6;
-  string description = 7;
+  string description = 6;
 }
-message CreateManualEventRequest { ManualEventInput input = 1; }
-message CreateGapFillRequest { ManualEventInput input = 1; }
-message UpdateManualEventRequest { int64 id = 1; ManualEventInput input = 2; }
-message DeleteManualEventRequest { int64 id = 1; int64 period_id = 2; }
-message CreateManualEventResponse { int64 period_id = 1; int64 id = 2; }
-message CreateGapFillResponse { int64 period_id = 1; int64 id = 2; }
-message UpdateManualEventResponse { int64 period_id = 1; int64 id = 2; }
-message DeleteManualEventResponse { int64 period_id = 1; int64 id = 2; }
+message CreateTimeEntryRequest { TimeEntryInput input = 1; }
+message CreateGapTimeEntryRequest { TimeEntryInput input = 1; }
+message UpdateTimeEntryRequest { int64 id = 1; TimeEntryInput input = 2; }
+message DeleteTimeEntryRequest { int64 id = 1; int64 period_id = 2; }
+message CreateTimeEntryResponse { int64 period_id = 1; int64 id = 2; }
+message CreateGapTimeEntryResponse { int64 period_id = 1; int64 id = 2; }
+message UpdateTimeEntryResponse { int64 period_id = 1; int64 id = 2; }
+message DeleteTimeEntryResponse { int64 period_id = 1; int64 id = 2; }
 enum ReviewActionRole {
   REVIEW_ACTION_ROLE_UNSPECIFIED = 0;
   REVIEW_ACTION_ROLE_PRIMARY = 1;

@@ -1,11 +1,11 @@
-import type { GapFill } from "@/lib/api";
+import type { TimeEntry } from "@/lib/api";
 
 export function eventItemId(eventId: number): string {
   return `event-${eventId}`;
 }
 
-export function gapFillItemId(gapFillId: number): string {
-  return `gap-fill-${gapFillId}`;
+export function timeEntryItemId(timeEntryId: number): string {
+  return `time-entry-${timeEntryId}`;
 }
 
 export function allDayChipId(eventId: number, day: string): string {
@@ -22,26 +22,28 @@ export function parseEventItemId(itemId: string): number | null {
   return Number.isFinite(eventId) ? eventId : null;
 }
 
-export function parseGapFillItemId(itemId: string): number | null {
-  const match = /^gap-fill-(\d+)$/.exec(itemId);
+export function parseTimeEntryItemId(itemId: string): number | null {
+  const match = /^time-entry-(\d+)$/.exec(itemId);
   if (!match) {
     return null;
   }
 
-  const gapFillId = Number(match[1]);
-  return Number.isFinite(gapFillId) ? gapFillId : null;
+  const timeEntryId = Number(match[1]);
+  return Number.isFinite(timeEntryId) ? timeEntryId : null;
 }
 
 export function isEventItemId(itemId: string): boolean {
   return parseEventItemId(itemId) !== null;
 }
 
-export function isGapFillItemId(itemId: string): boolean {
-  return parseGapFillItemId(itemId) !== null;
+export function isTimeEntryItemId(itemId: string): boolean {
+  return parseTimeEntryItemId(itemId) !== null;
 }
 
-export function buildGapFillsByItemId(
-  gapFills: GapFill[],
-): Map<string, GapFill> {
-  return new Map(gapFills.map((gapFill) => [gapFillItemId(gapFill.id), gapFill]));
+export function buildTimeEntriesByItemId(
+  timeEntries: TimeEntry[],
+): Map<string, TimeEntry> {
+  return new Map(
+    timeEntries.map((timeEntry) => [timeEntryItemId(timeEntry.id), timeEntry]),
+  );
 }

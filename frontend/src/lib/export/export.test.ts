@@ -33,7 +33,7 @@ const items: ScheduleItem[] = [
     },
   },
   {
-    id: "gap-fill-1",
+    id: "time-entry-1",
     day: "2026-06-01",
     startMinutes: 13 * 60,
     endMinutes: 15 * 60,
@@ -45,7 +45,7 @@ const items: ScheduleItem[] = [
     },
   },
   {
-    id: "gap-fill-2",
+    id: "time-entry-2",
     day: "2026-06-02",
     startMinutes: 10 * 60,
     endMinutes: 12 * 60,

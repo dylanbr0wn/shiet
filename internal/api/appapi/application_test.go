@@ -102,11 +102,11 @@ func TestPortableApplicationServicesShareOneConnectHandler(t *testing.T) {
 	}
 	periodID := ensured.Msg.Period.Id
 	scheduleClient := appv1connect.NewScheduleServiceClient(httpClient, "http://shiet.test")
-	manual, err := scheduleClient.CreateManualEvent(context.Background(), connect.NewRequest(&appv1.CreateManualEventRequest{Input: &appv1.ManualEventInput{PeriodId: periodID, Day: "2026-07-09", StartMinutes: 540, EndMinutes: 600}}))
+	manual, err := scheduleClient.CreateTimeEntry(context.Background(), connect.NewRequest(&appv1.CreateTimeEntryRequest{Input: &appv1.TimeEntryInput{PeriodId: periodID, Day: "2026-07-09", StartMinutes: 540, EndMinutes: 600}}))
 	if err != nil || manual.Msg.Id <= 0 {
-		t.Fatalf("manual event: %#v err=%v", manual, err)
+		t.Fatalf("time entry: %#v err=%v", manual, err)
 	}
-	_, err = scheduleClient.CreateManualEvent(context.Background(), connect.NewRequest(&appv1.CreateManualEventRequest{Input: &appv1.ManualEventInput{PeriodId: periodID, Day: "2026-07-09", StartMinutes: 600, EndMinutes: 540}}))
+	_, err = scheduleClient.CreateTimeEntry(context.Background(), connect.NewRequest(&appv1.CreateTimeEntryRequest{Input: &appv1.TimeEntryInput{PeriodId: periodID, Day: "2026-07-09", StartMinutes: 600, EndMinutes: 540}}))
 	if connect.CodeOf(err) != connect.CodeInvalidArgument {
 		t.Fatalf("invalid range code = %v", connect.CodeOf(err))
 	}

@@ -161,7 +161,7 @@ func (s *Service) BuildPeriodExport(ctx context.Context, periodID int64) (Period
 	if err != nil {
 		return PeriodExportModel{}, err
 	}
-	fills, err := s.ListGapFills(ctx, periodID)
+	fills, err := s.ListTimeEntries(ctx, periodID)
 	if err != nil {
 		return PeriodExportModel{}, err
 	}
@@ -196,7 +196,7 @@ func (s *Service) BuildPeriodExport(ctx context.Context, periodID int64) (Period
 		}
 	}
 	for _, fill := range fills {
-		entry, ok, err := gapFillToExportEntry(fill, segs, catsByID, locCache)
+		entry, ok, err := timeEntryToExportEntry(fill, segs, catsByID, locCache)
 		if err != nil {
 			return PeriodExportModel{}, err
 		}
@@ -428,19 +428,19 @@ func eventToExportEntry(
 	}, true, nil
 }
 
-func gapFillToExportEntry(
-	fill GapFill,
+func timeEntryToExportEntry(
+	entry TimeEntry,
 	segs []TzSegment,
 	catsByID map[int64]Category,
 	locCache map[string]*time.Location,
 ) (ExportEntry, bool, error) {
-	start := parseTime(fill.Start)
-	end := parseTime(fill.End)
+	start := parseTime(entry.Start)
+	end := parseTime(entry.End)
 	if start.IsZero() || end.IsZero() {
 		return ExportEntry{}, false, nil
 	}
 
-	day := fill.Day
+	day := entry.LocalWorkDate
 	tzName := "UTC"
 	if len(segs) > 0 {
 		if day == "" {
@@ -466,20 +466,20 @@ func gapFillToExportEntry(
 		endMinutes = scheduleEndMinutes
 	}
 	endMinutes = maxInt(startMinutes+minBlockMinutes, endMinutes)
-	category := resolveExportCategory(fill.CategoryID, catsByID)
-	title := fill.Note
+	category := resolveExportCategory(entry.CategoryID, catsByID)
+	title := entry.Description
 	if title == "" {
 		title = category.Name
 	}
 	return ExportEntry{
 		Source:       "gap_fill",
-		SourceID:     fill.ID,
+		SourceID:     entry.ID,
 		Day:          day,
 		StartMinutes: startMinutes,
 		EndMinutes:   endMinutes,
 		Minutes:      endMinutes - startMinutes,
 		Title:        title,
-		Description:  fill.Description,
+		Description:  entry.Description,
 		Category:     category,
 	}, true, nil
 }

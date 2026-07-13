@@ -4,7 +4,7 @@ interface BuildSchedulePageStatusArgs {
   loadingFlags: boolean[];
   errors: unknown[];
   eventsCount: number;
-  gapFillsCount: number;
+  timeEntriesCount: number;
   categoriesCount: number;
   reviewDecisionsCount: number;
 }
@@ -13,7 +13,7 @@ export function buildSchedulePageStatus({
   loadingFlags,
   errors,
   eventsCount,
-  gapFillsCount,
+  timeEntriesCount,
   categoriesCount,
   reviewDecisionsCount,
 }: BuildSchedulePageStatusArgs) {
@@ -22,7 +22,7 @@ export function buildSchedulePageStatus({
     backendError: firstError(errors),
     counts: {
       events: eventsCount,
-      gapFills: gapFillsCount,
+      timeEntries: timeEntriesCount,
       categories: categoriesCount,
       reviewDecisions: reviewDecisionsCount,
     },

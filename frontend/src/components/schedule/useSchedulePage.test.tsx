@@ -11,7 +11,7 @@ const mockViewDayCountState = vi.hoisted(() => ({
 
 const mockState = vi.hoisted(() => {
   const createMutate = vi.fn();
-  const createGapFillMutate = vi.fn();
+  const createGapTimeEntryMutate = vi.fn();
   const suggestMutate = vi.fn();
   const evidenceMutate = vi.fn();
   const updateMutate = vi.fn();
@@ -35,31 +35,29 @@ const mockState = vi.hoisted(() => {
       inUse: false,
     }],
     events: [],
-    gapFills: [
+    timeEntries: [
       {
         id: 11,
         periodId: 1,
-        day: "2026-07-02",
+        localWorkDate: "2026-07-02",
         start: "2026-07-02T09:00:00Z",
         end: "2026-07-02T10:00:00Z",
-        startMinutes: 540,
-        endMinutes: 600,
+        durationMinutes: 60,
         categoryId: 10,
-        note: "manual one",
         description: "Manual description",
-        source: "manual",
+        attestation: "confirmed",
       },
       {
         id: 12,
         periodId: 1,
-        day: "2026-07-02",
+        localWorkDate: "2026-07-02",
         start: "2026-07-02T10:00:00Z",
         end: "2026-07-02T11:00:00Z",
-        startMinutes: 600,
-        endMinutes: 660,
+        durationMinutes: 60,
         categoryId: 10,
-        note: "auto one",
-        source: "timeline",
+        description: "auto one",
+        attestation: "confirmed",
+        method: "gap_fill",
       },
     ],
     gapTimeline: [],
@@ -68,7 +66,7 @@ const mockState = vi.hoisted(() => {
     aiConfigured: true,
     aiLocal: false,
     createMutate,
-    createGapFillMutate,
+    createGapTimeEntryMutate,
     suggestMutate,
     evidenceMutate,
     updateMutate,
@@ -110,7 +108,7 @@ vi.mock("@/lib/api", () => ({
     isLoading: false,
     error: null,
   }),
-  useGapFills: () => ({ data: mockState.gapFills, isLoading: false, error: null }),
+  useTimeEntries: () => ({ data: mockState.timeEntries, isLoading: false, error: null }),
   useGapTimeline: () => ({ data: mockState.gapTimeline, isLoading: false, error: null }),
   useReviewDecisions: () => ({
     data: mockState.reviewDecisions,
@@ -118,13 +116,13 @@ vi.mock("@/lib/api", () => ({
     error: null,
   }),
   useTzSegments: () => ({ data: mockState.tzSegments, isLoading: false, error: null }),
-  useCreateManualEvent: () => ({
+  useCreateTimeEntry: () => ({
     mutate: mockState.createMutate,
     isPending: false,
     error: null,
   }),
-  useCreateGapFill: () => ({
-    mutate: mockState.createGapFillMutate,
+  useCreateGapTimeEntry: () => ({
+    mutate: mockState.createGapTimeEntryMutate,
     isPending: false,
     error: null,
   }),
@@ -140,12 +138,12 @@ vi.mock("@/lib/api", () => ({
     error: null,
     reset: vi.fn(),
   }),
-  useUpdateManualEvent: () => ({
+  useUpdateTimeEntry: () => ({
     mutate: mockState.updateMutate,
     isPending: false,
     error: null,
   }),
-  useDeleteManualEvent: () => ({
+  useDeleteTimeEntry: () => ({
     mutate: mockState.deleteMutate,
     isPending: false,
     error: null,
@@ -164,7 +162,7 @@ describe("useSchedulePage", () => {
     mockViewDayCountState.value = 7;
     mockViewDayCountState.setValue.mockReset();
     mockState.createMutate.mockReset();
-    mockState.createGapFillMutate.mockReset();
+    mockState.createGapTimeEntryMutate.mockReset();
     mockState.suggestMutate.mockReset();
     mockState.evidenceMutate.mockReset();
     mockState.updateMutate.mockReset();
@@ -247,13 +245,13 @@ describe("useSchedulePage", () => {
 
     act(() => {
       result.current.handleCommit({
-        itemId: "gap-fill-11",
+        itemId: "time-entry-11",
         day: "2026-07-02",
         startMinutes: 560,
         endMinutes: 620,
         interaction: "move",
         item: {
-          id: "gap-fill-11",
+          id: "time-entry-11",
           day: "2026-07-02",
           startMinutes: 540,
           endMinutes: 600,
@@ -269,7 +267,6 @@ describe("useSchedulePage", () => {
         day: "2026-07-02",
         startMinutes: 560,
         endMinutes: 620,
-        note: "manual one",
         description: "Manual description",
       }),
       expect.objectContaining({

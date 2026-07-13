@@ -38,18 +38,17 @@ describe("schedulePage.selectors", () => {
       categories: [{ id: 10, name: "Work", color: "#0EA5E9", isDefaultGap: false } as never],
       events: [],
       eventCategoryOverlays: [],
-      gapFills: [
+      timeEntries: [
         {
           id: 7,
           periodId: 1,
-          day: "2026-07-01",
+          localWorkDate: "2026-07-01",
           start: "2026-07-01T09:00:00Z",
           end: "2026-07-01T10:00:00Z",
-          startMinutes: 540,
-          endMinutes: 600,
+          durationMinutes: 60,
           categoryId: 10,
-          note: "focus",
-          source: "manual",
+          description: "focus",
+          attestation: "confirmed",
         } as never,
       ],
       gapTimeline: [],

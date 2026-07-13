@@ -2,21 +2,21 @@ import {
   useAIConfigured,
   useCategories,
   useClassifyAIEndpoint,
-  useCreateGapFill,
-  useCreateManualEvent,
+  useCreateGapTimeEntry,
+  useCreateTimeEntry,
   useCurrentPeriod,
-  useDeleteManualEvent,
+  useDeleteTimeEntry,
   useExcludeEvent,
   useEventCategoryOverlays,
   useEvents,
-  useGapFills,
+  useTimeEntries,
   useGapTimeline,
   useReviewDecisions,
   usePeriods,
   useListGapEvidence,
   useSuggestGapFill,
   useTzSegments,
-  useUpdateManualEvent,
+  useUpdateTimeEntry,
 } from "@/lib/api";
 
 export function useSchedulePageBaseQueries(today: string, currentTimeZone: string) {
@@ -24,12 +24,12 @@ export function useSchedulePageBaseQueries(today: string, currentTimeZone: strin
   const currentPeriodQuery = useCurrentPeriod(today, currentTimeZone);
   const categoriesQuery = useCategories();
 
-  const createManualEventMutation = useCreateManualEvent();
-  const createGapFillMutation = useCreateGapFill();
+  const createTimeEntryMutation = useCreateTimeEntry();
+  const createGapTimeEntryMutation = useCreateGapTimeEntry();
   const suggestGapFillMutation = useSuggestGapFill();
   const listGapEvidenceMutation = useListGapEvidence();
-  const updateManualEventMutation = useUpdateManualEvent();
-  const deleteManualEventMutation = useDeleteManualEvent();
+  const updateTimeEntryMutation = useUpdateTimeEntry();
+  const deleteTimeEntryMutation = useDeleteTimeEntry();
   const excludeEventMutation = useExcludeEvent();
 
   const aiConfig = useAIConfigured();
@@ -39,12 +39,12 @@ export function useSchedulePageBaseQueries(today: string, currentTimeZone: strin
     periodsQuery,
     currentPeriodQuery,
     categoriesQuery,
-    createManualEventMutation,
-    createGapFillMutation,
+    createTimeEntryMutation,
+    createGapTimeEntryMutation,
     suggestGapFillMutation,
     listGapEvidenceMutation,
-    updateManualEventMutation,
-    deleteManualEventMutation,
+    updateTimeEntryMutation,
+    deleteTimeEntryMutation,
     excludeEventMutation,
     aiConfig,
     aiClassification,
@@ -54,7 +54,7 @@ export function useSchedulePageBaseQueries(today: string, currentTimeZone: strin
 export function useSchedulePagePeriodQueries(activePeriodId: number | undefined) {
   const eventsQuery = useEvents(activePeriodId);
   const eventCategoryOverlaysQuery = useEventCategoryOverlays(activePeriodId);
-  const gapFillsQuery = useGapFills(activePeriodId);
+  const timeEntriesQuery = useTimeEntries(activePeriodId);
   const gapTimelineQuery = useGapTimeline(activePeriodId);
   const reviewDecisionsQuery = useReviewDecisions(activePeriodId);
   const tzSegmentsQuery = useTzSegments(activePeriodId);
@@ -62,7 +62,7 @@ export function useSchedulePagePeriodQueries(activePeriodId: number | undefined)
   return {
     eventsQuery,
     eventCategoryOverlaysQuery,
-    gapFillsQuery,
+    timeEntriesQuery,
     gapTimelineQuery,
     reviewDecisionsQuery,
     tzSegmentsQuery,

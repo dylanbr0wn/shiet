@@ -68,7 +68,7 @@ describe("useScheduleGapSuggest", () => {
         activePeriodId: 12,
         aiConfigured: true,
         ...createMutations({ suggestMutate, evidenceMutate }),
-        createGapFillMutation: {
+        createGapTimeEntryMutation: {
           isPending: false,
           mutate: createMutate,
         },
@@ -105,7 +105,7 @@ describe("useScheduleGapSuggest", () => {
     ]);
   });
 
-  it("creates gap fill and closes dialog on confirm", () => {
+  it("creates gap time entry and closes dialog on confirm", () => {
     const suggestReset = vi.fn();
     const evidenceReset = vi.fn();
     const createMutate = vi.fn(
@@ -119,7 +119,7 @@ describe("useScheduleGapSuggest", () => {
         activePeriodId: 10,
         aiConfigured: false,
         ...createMutations({ suggestReset, evidenceReset }),
-        createGapFillMutation: {
+        createGapTimeEntryMutation: {
           isPending: false,
           mutate: createMutate,
         },

@@ -23,7 +23,7 @@ interface ListGapEvidenceMutation {
   reset: () => void;
 }
 
-interface CreateGapFillMutation {
+interface CreateGapTimeEntryMutation {
   isPending: boolean;
   mutate: (
     payload: {
@@ -43,7 +43,7 @@ interface UseScheduleGapSuggestParams {
   aiConfigured: boolean;
   suggestGapFillMutation: SuggestGapFillMutation;
   listGapEvidenceMutation: ListGapEvidenceMutation;
-  createGapFillMutation: CreateGapFillMutation;
+  createGapTimeEntryMutation: CreateGapTimeEntryMutation;
   resetKey: number | undefined;
 }
 
@@ -52,7 +52,7 @@ export function useScheduleGapSuggest({
   aiConfigured,
   suggestGapFillMutation,
   listGapEvidenceMutation,
-  createGapFillMutation,
+  createGapTimeEntryMutation,
   resetKey,
 }: UseScheduleGapSuggestParams) {
   const [selectedGap, setSelectedGap] = useState<SelectedGap | null>(null);
@@ -123,7 +123,7 @@ export function useScheduleGapSuggest({
       return;
     }
 
-    createGapFillMutation.mutate(
+    createGapTimeEntryMutation.mutate(
       {
         periodId: activePeriodId,
         day: selectedGap.day,
@@ -157,7 +157,7 @@ export function useScheduleGapSuggest({
     gapSuggestOpen: selectedGap !== null,
     gapSuggestPending: suggestGapFillMutation.isPending,
     gapEvidencePending: listGapEvidenceMutation.isPending,
-    gapSuggestSaving: createGapFillMutation.isPending,
+    gapSuggestSaving: createGapTimeEntryMutation.isPending,
     gapSuggestError: suggestGapFillMutation.error,
     gapEvidenceError: listGapEvidenceMutation.error,
     handleSelectGap,
