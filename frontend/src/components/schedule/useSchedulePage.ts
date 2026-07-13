@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type SetStateAction } from "react";
 import { defaultTimeZone, localDateKey, type ScheduleGapOverlay } from "@/lib/schedule";
+import { useJsonSetting } from "../settings/useJsonSetting";
 import { useSchedulePageEditor } from "./schedulePage.editor";
 import { useSchedulePageBaseQueries, useSchedulePagePeriodQueries } from "./schedulePage.queries";
 import {
@@ -12,6 +13,10 @@ import type {
   ScheduleEventEditValues,
   SchedulePageViewModel,
   ScheduleViewDayCount,
+} from "./schedulePage.types";
+import {
+  parseScheduleViewDayCount,
+  SCHEDULE_VIEW_DAY_COUNT_KEY,
 } from "./schedulePage.types";
 import { useScheduleGapSuggest } from "./useScheduleGapSuggest";
 import { mergePeriods } from "./useSchedulePage.helpers";
@@ -26,7 +31,21 @@ export { SCHEDULE_VIEW_DAY_OPTIONS } from "./schedulePage.types";
 
 export function useSchedulePage(): SchedulePageViewModel {
   const [selectedPeriodId, setSelectedPeriodId] = useState<number | null>(null);
-  const [viewDayCount, setViewDayCount] = useState<ScheduleViewDayCount>(7);
+  const viewDayCountSetting = useJsonSetting<number>(
+    SCHEDULE_VIEW_DAY_COUNT_KEY,
+    7,
+  );
+  const viewDayCount = parseScheduleViewDayCount(viewDayCountSetting.value);
+  const setViewDayCount = useCallback(
+    (next: SetStateAction<ScheduleViewDayCount>) => {
+      const resolved =
+        typeof next === "function"
+          ? parseScheduleViewDayCount(next(viewDayCount))
+          : parseScheduleViewDayCount(next);
+      viewDayCountSetting.setValue(resolved);
+    },
+    [viewDayCount, viewDayCountSetting],
+  );
   const [reviewQueueOpen, setReviewQueueOpen] = useState(false);
   const today = useMemo(() => localDateKey(), []);
   const currentTimeZone = useMemo(() => defaultTimeZone(), []);
