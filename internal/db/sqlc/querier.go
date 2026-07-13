@@ -18,13 +18,19 @@ type Querier interface {
 	CountOverlayReferencesToCategory(ctx context.Context, categoryID sql.NullInt64) (int64, error)
 	CountTimeEntryReferencesToCategory(ctx context.Context, categoryID sql.NullInt64) (int64, error)
 	CountTimeEntryReferencesToProject(ctx context.Context, projectID sql.NullInt64) (int64, error)
+	CountWorkSchedules(ctx context.Context) (int64, error)
 	CreateCategory(ctx context.Context, arg CreateCategoryParams) (Category, error)
 	CreateExportTemplate(ctx context.Context, arg CreateExportTemplateParams) (ExportTemplate, error)
 	CreatePeriod(ctx context.Context, arg CreatePeriodParams) (Period, error)
 	CreateProject(ctx context.Context, arg CreateProjectParams) (Project, error)
 	CreateReviewItem(ctx context.Context, arg CreateReviewItemParams) (ReviewItem, error)
+	CreateScheduleException(ctx context.Context, arg CreateScheduleExceptionParams) (ScheduleException, error)
+	CreateScheduleExceptionWindow(ctx context.Context, arg CreateScheduleExceptionWindowParams) (ScheduleExceptionWindow, error)
 	CreateSubmission(ctx context.Context, arg CreateSubmissionParams) (Submission, error)
 	CreateTimeEntry(ctx context.Context, arg CreateTimeEntryParams) (TimeEntry, error)
+	CreateWorkSchedule(ctx context.Context, arg CreateWorkScheduleParams) (WorkSchedule, error)
+	CreateWorkScheduleDay(ctx context.Context, arg CreateWorkScheduleDayParams) (WorkScheduleDay, error)
+	CreateWorkScheduleWindow(ctx context.Context, arg CreateWorkScheduleWindowParams) (WorkScheduleWindow, error)
 	DeleteBitbucketReposByAccount(ctx context.Context, accountID string) error
 	DeleteBitbucketWorkspacesByAccount(ctx context.Context, accountID string) error
 	DeleteCategory(ctx context.Context, id int64) error
@@ -59,9 +65,11 @@ type Querier interface {
 	GetProjectByKey(ctx context.Context, key string) (Project, error)
 	GetReviewItem(ctx context.Context, id int64) (ReviewItem, error)
 	GetReviewItemByConflictKey(ctx context.Context, arg GetReviewItemByConflictKeyParams) (ReviewItem, error)
+	GetScheduleExceptionByDate(ctx context.Context, date string) (ScheduleException, error)
 	GetSetting(ctx context.Context, key string) (string, error)
 	GetSlackChannel(ctx context.Context, id int64) (SlackChannel, error)
 	GetTimeEntry(ctx context.Context, arg GetTimeEntryParams) (TimeEntry, error)
+	GetWorkSchedule(ctx context.Context, id int64) (WorkSchedule, error)
 	ListAllCategories(ctx context.Context) ([]Category, error)
 	ListAllEventsForPeriod(ctx context.Context, periodID int64) ([]Event, error)
 	ListAllProjects(ctx context.Context) ([]Project, error)
@@ -83,6 +91,8 @@ type Querier interface {
 	ListOverlaysForPeriod(ctx context.Context, periodID int64) ([]Overlay, error)
 	ListPeriods(ctx context.Context) ([]Period, error)
 	ListProjects(ctx context.Context) ([]Project, error)
+	ListScheduleExceptionWindows(ctx context.Context, scheduleExceptionID int64) ([]ScheduleExceptionWindow, error)
+	ListScheduleExceptions(ctx context.Context) ([]ScheduleException, error)
 	ListSelectedBitbucketRepos(ctx context.Context) ([]BitbucketRepo, error)
 	ListSelectedCalendars(ctx context.Context) ([]Calendar, error)
 	ListSelectedGitHubRepos(ctx context.Context) ([]GithubRepo, error)
@@ -94,6 +104,9 @@ type Querier interface {
 	ListTimeEntriesForDay(ctx context.Context, arg ListTimeEntriesForDayParams) ([]TimeEntry, error)
 	ListTimeEntriesForPeriod(ctx context.Context, periodID int64) ([]TimeEntry, error)
 	ListTzSegments(ctx context.Context, periodID int64) ([]TzSegment, error)
+	ListWorkScheduleDays(ctx context.Context, workScheduleID int64) ([]WorkScheduleDay, error)
+	ListWorkScheduleWindows(ctx context.Context, workScheduleDayID int64) ([]WorkScheduleWindow, error)
+	ListWorkSchedules(ctx context.Context) ([]WorkSchedule, error)
 	NextSubmissionVersion(ctx context.Context, periodID int64) (int64, error)
 	// Train memory from a user correction; bump hit count on repeat.
 	RememberCategory(ctx context.Context, arg RememberCategoryParams) (Memory, error)
@@ -112,7 +125,6 @@ type Querier interface {
 	UpdateCategory(ctx context.Context, arg UpdateCategoryParams) error
 	UpdateExportTemplate(ctx context.Context, arg UpdateExportTemplateParams) (ExportTemplate, error)
 	UpdateIntegrationConnectionStatus(ctx context.Context, arg UpdateIntegrationConnectionStatusParams) error
-	UpdatePeriodTarget(ctx context.Context, arg UpdatePeriodTargetParams) error
 	UpdateProject(ctx context.Context, arg UpdateProjectParams) (Project, error)
 	UpdateTimeEntry(ctx context.Context, arg UpdateTimeEntryParams) (TimeEntry, error)
 	UpdateTimeEntrySpan(ctx context.Context, arg UpdateTimeEntrySpanParams) (TimeEntry, error)

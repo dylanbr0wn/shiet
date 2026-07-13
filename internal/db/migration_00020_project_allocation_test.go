@@ -121,8 +121,8 @@ func TestMigrateProjectAllocation_RejectsInvalidEnums(t *testing.T) {
 
 	var periodID int64
 	if err := conn.QueryRowContext(ctx, `
-		INSERT INTO period (start_date, end_date, cadence, anchor_date, target_hours_per_day)
-		VALUES ('2026-06-01', '2026-06-14', 'bi-weekly', '2026-06-01', 8)
+		INSERT INTO period (start_date, end_date, cadence, anchor_date)
+		VALUES ('2026-06-01', '2026-06-14', 'bi-weekly', '2026-06-01')
 		RETURNING id
 	`).Scan(&periodID); err != nil {
 		t.Fatalf("insert period: %v", err)
