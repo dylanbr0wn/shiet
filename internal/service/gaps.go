@@ -27,17 +27,13 @@ type DayTimeline struct {
 	GapHours     float64    `json:"gapHours"`
 }
 
-// Temporary flat window stubs until ExpectedTime rewire (DYL-158). Match seed
-// default: 09:00 local, 480 expected minutes — not read from settings/period.
-const (
-	stubWindowStartHH       = 9
-	stubWindowStartMM       = 0
-	stubExpectedMinutesDay  = 480
-)
-
 // ComputeGaps builds the per-day timelines for a period: for each date it
-// resolves the active timezone segment, lays out a working window, and
-// subtracts active timed events + gap fills to find the uncovered gaps.
+// resolves ExpectedTime working windows (schedule timezone), records the
+// period's active timezone segment for local bucketing, and subtracts active
+// timed events + gap fills to find the uncovered gaps.
+//
+// Dates with no expected minutes / empty windows produce an empty timeline
+// (no unconditional daily target). Multiple windows are unioned.
 //
 // All-day events do not occupy time here (they are resolved via the review
 // queue, not the timeline). Declined and soft-hidden events are excluded.
@@ -61,14 +57,9 @@ func (s *Service) ComputeGaps(ctx context.Context, periodID int64) ([]DayTimelin
 	if err != nil {
 		return nil, err
 	}
-
-	start, err := parseDate(period.StartDate)
+	expected, err := s.ExpectedTimeForRange(ctx, period.StartDate, period.EndDate)
 	if err != nil {
-		return nil, fmt.Errorf("period start_date: %w", err)
-	}
-	end, err := parseDate(period.EndDate)
-	if err != nil {
-		return nil, fmt.Errorf("period end_date: %w", err)
+		return nil, err
 	}
 
 	// Collect occupying spans once: timed, active, non-declined events; and fills.
@@ -84,32 +75,44 @@ func (s *Service) ComputeGaps(ctx context.Context, periodID int64) ([]DayTimelin
 	}
 
 	locCache := map[string]*time.Location{}
-	out := []DayTimeline{}
-	for d := start; !d.After(end); d = d.AddDate(0, 0, 1) {
-		dateStr := d.Format("2006-01-02")
+	out := make([]DayTimeline, 0, len(expected))
+	for _, et := range expected {
+		dateStr := et.Date
 		seg := activeSegment(segs, dateStr)
-		loc, err := loadLoc(locCache, seg.IanaTz)
+
+		working, err := workingWindowsUTC(et, locCache)
 		if err != nil {
 			return nil, err
 		}
+		if len(working) == 0 {
+			out = append(out, DayTimeline{
+				Date:         dateStr,
+				Tz:           seg.IanaTz,
+				Events:       []Interval{},
+				Filled:       []Interval{},
+				Gaps:         []Interval{},
+				CoveredHours: 0,
+				GapHours:     0,
+			})
+			continue
+		}
 
-		y, m, day := d.Date()
-		// Window in local wall-clock; time.Date normalizes minute overflow and is
-		// DST-correct (e.g. a 23h/25h day shifts the UTC instants accordingly).
-		ws := time.Date(y, m, day, stubWindowStartHH, stubWindowStartMM, 0, 0, loc)
-		we := time.Date(y, m, day, stubWindowStartHH, stubWindowStartMM+stubExpectedMinutesDay, 0, 0, loc)
-		win := Interval{Start: ws.UTC(), End: we.UTC()}
-
-		dayEvents := clipAll(eventSpans, win)
-		dayFills := clipAll(fillSpans, win)
+		var dayEvents, dayFills []Interval
+		for _, win := range working {
+			dayEvents = append(dayEvents, clipAll(eventSpans, win)...)
+			dayFills = append(dayFills, clipAll(fillSpans, win)...)
+		}
 		occupied := union(append(append([]Interval{}, dayEvents...), dayFills...))
-		gaps := subtract(win, occupied)
+		var gaps []Interval
+		for _, win := range working {
+			gaps = append(gaps, subtract(win, occupied)...)
+		}
 
 		out = append(out, DayTimeline{
 			Date:         dateStr,
 			Tz:           seg.IanaTz,
-			WindowStart:  win.Start,
-			WindowEnd:    win.End,
+			WindowStart:  working[0].Start,
+			WindowEnd:    working[len(working)-1].End,
 			Events:       dayEvents,
 			Filled:       dayFills,
 			Gaps:         gaps,
@@ -118,6 +121,47 @@ func (s *Service) ComputeGaps(ctx context.Context, periodID int64) ([]DayTimelin
 		})
 	}
 	return out, nil
+}
+
+// workingWindowsUTC converts ExpectedTime local windows into sorted, disjoint
+// UTC intervals on that calendar date in the schedule timezone. When expected
+// minutes are set but windows are omitted, derives a single window starting at
+// 09:00 local with that duration.
+func workingWindowsUTC(et ExpectedTime, locCache map[string]*time.Location) ([]Interval, error) {
+	if et.ExpectedMinutes <= 0 {
+		return nil, nil
+	}
+	windows := et.Windows
+	if len(windows) == 0 {
+		start := 9 * 60
+		windows = []WorkingWindow{{
+			StartMinutes: start,
+			EndMinutes:   start + et.ExpectedMinutes,
+		}}
+	}
+	iana := et.Timezone
+	if iana == "" {
+		return nil, fmt.Errorf("expected time for %s: missing schedule timezone", et.Date)
+	}
+	loc, err := loadLoc(locCache, iana)
+	if err != nil {
+		return nil, err
+	}
+	day, err := time.ParseInLocation("2006-01-02", et.Date, loc)
+	if err != nil {
+		return nil, fmt.Errorf("expected time date %q: %w", et.Date, err)
+	}
+	y, m, d := day.Date()
+	raw := make([]Interval, 0, len(windows))
+	for _, w := range windows {
+		if w.EndMinutes <= w.StartMinutes {
+			continue
+		}
+		ws := time.Date(y, m, d, 0, w.StartMinutes, 0, 0, loc)
+		we := time.Date(y, m, d, 0, w.EndMinutes, 0, 0, loc)
+		raw = append(raw, Interval{Start: ws.UTC(), End: we.UTC()})
+	}
+	return union(raw), nil
 }
 
 // activeSegment returns the segment governing dateStr: the latest segment whose

@@ -97,6 +97,43 @@ func TestGaps_EmptyDayIsOneFullGap(t *testing.T) {
 	}
 }
 
+func TestGaps_WeekendHasNoUnconditionalTarget(t *testing.T) {
+	// Saturday under seeded Mon–Fri schedule → 0 expected, no working window.
+	e := newGapEnv(t, "2026-06-06", "2026-06-06", "America/Toronto")
+	days, err := e.svc.ComputeGaps(context.Background(), e.periodID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(days) != 1 {
+		t.Fatalf("want 1 day, got %d", len(days))
+	}
+	d := days[0]
+	if len(d.Gaps) != 0 || d.GapHours != 0 || d.CoveredHours != 0 {
+		t.Fatalf("weekend must not get unconditional target, got gaps=%+v gapHours=%v covered=%v", d.Gaps, d.GapHours, d.CoveredHours)
+	}
+	if !d.WindowStart.IsZero() || !d.WindowEnd.IsZero() {
+		t.Fatalf("weekend window must be empty, got %s–%s", d.WindowStart, d.WindowEnd)
+	}
+}
+
+func TestGaps_HolidayExceptionHasNoUnconditionalTarget(t *testing.T) {
+	e := newGapEnv(t, "2026-06-01", "2026-06-01", "America/Toronto")
+	if _, err := e.svc.UpsertScheduleException(context.Background(), service.ScheduleExceptionInput{
+		Date:            "2026-06-01",
+		Kind:            "holiday",
+		ExpectedMinutes: 0,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	days, err := e.svc.ComputeGaps(context.Background(), e.periodID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if days[0].GapHours != 0 || len(days[0].Gaps) != 0 {
+		t.Fatalf("holiday must not get unconditional target, got %+v", days[0])
+	}
+}
+
 func TestGaps_WindowStartUsesSegmentTZ(t *testing.T) {
 	// June → EDT (UTC-4). Local 09:00 → 13:00 UTC.
 	e := newGapEnv(t, "2026-06-01", "2026-06-01", "America/Toronto")
@@ -195,32 +232,39 @@ func TestGaps_DeclinedEventExcluded(t *testing.T) {
 }
 
 func TestGaps_DSTSpringForward(t *testing.T) {
-	// US DST starts 2026-03-08. Window 09:00 local both days.
-	//   Mar 7 EST (UTC-5) → 14:00Z; Mar 8 EDT (UTC-4) → 13:00Z.
-	e := newGapEnv(t, "2026-03-07", "2026-03-08", "America/Toronto")
+	// US DST starts 2026-03-08. Use weekdays bracketing the change so ExpectedTime
+	// still has working windows: Fri Mar 6 EST, Mon Mar 9 EDT.
+	//   Mar 6 EST (UTC-5) → 14:00Z; Mar 9 EDT (UTC-4) → 13:00Z.
+	e := newGapEnv(t, "2026-03-06", "2026-03-09", "America/Toronto")
 	days, err := e.svc.ComputeGaps(context.Background(), e.periodID)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(days) != 2 {
-		t.Fatalf("want 2 days, got %d", len(days))
+	if len(days) != 4 {
+		t.Fatalf("want 4 days, got %d", len(days))
 	}
-	if h := days[0].WindowStart.UTC().Hour(); h != 14 {
-		t.Fatalf("Mar 7 (EST) window start want 14:00Z, got %02d:00Z", h)
+	fri, mon := days[0], days[3]
+	if fri.Date != "2026-03-06" || mon.Date != "2026-03-09" {
+		t.Fatalf("unexpected dates: %s ... %s", fri.Date, mon.Date)
 	}
-	if h := days[1].WindowStart.UTC().Hour(); h != 13 {
-		t.Fatalf("Mar 8 (EDT) window start want 13:00Z, got %02d:00Z", h)
+	if h := fri.WindowStart.UTC().Hour(); h != 14 {
+		t.Fatalf("Mar 6 (EST) window start want 14:00Z, got %02d:00Z", h)
 	}
-	// Both days still 8 working hours despite the 23h calendar day.
-	for i, d := range days {
-		if d.GapHours != 8 {
-			t.Fatalf("day %d want 8 gap hours, got %v", i, d.GapHours)
-		}
+	if h := mon.WindowStart.UTC().Hour(); h != 13 {
+		t.Fatalf("Mar 9 (EDT) window start want 13:00Z, got %02d:00Z", h)
+	}
+	if fri.GapHours != 8 || mon.GapHours != 8 {
+		t.Fatalf("weekdays want 8 gap hours, got fri=%v mon=%v", fri.GapHours, mon.GapHours)
+	}
+	// Weekend inside the range has no unconditional target.
+	if days[1].GapHours != 0 || days[2].GapHours != 0 {
+		t.Fatalf("weekend days want 0 gap, got sat=%v sun=%v", days[1].GapHours, days[2].GapHours)
 	}
 }
 
 func TestGaps_MultiDayPeriodAndSegmentSwitch(t *testing.T) {
-	// Two segments: first 2 days Toronto, then switch to Vancouver (UTC-7 in June).
+	// Working windows come from the schedule timezone (seeded America/Toronto),
+	// while DayTimeline.Tz still tracks the period segment for local bucketing.
 	e := newGapEnv(t, "2026-06-01", "2026-06-03", "America/Toronto")
 	if _, err := e.q.UpsertTzSegment(context.Background(), sqlc.UpsertTzSegmentParams{
 		PeriodID: e.periodID, EffectiveFromDate: "2026-06-03", IanaTz: "America/Vancouver",
@@ -234,8 +278,8 @@ func TestGaps_MultiDayPeriodAndSegmentSwitch(t *testing.T) {
 	if days[0].Tz != "America/Toronto" || days[2].Tz != "America/Vancouver" {
 		t.Fatalf("segment switch wrong: %s ... %s", days[0].Tz, days[2].Tz)
 	}
-	// Vancouver 09:00 PDT (UTC-7) → 16:00Z.
-	if h := days[2].WindowStart.UTC().Hour(); h != 16 {
-		t.Fatalf("Vancouver window start want 16:00Z, got %02d:00Z", h)
+	// Schedule TZ Toronto 09:00 EDT → 13:00Z even when the period segment is Vancouver.
+	if h := days[2].WindowStart.UTC().Hour(); h != 13 {
+		t.Fatalf("schedule window start want 13:00Z, got %02d:00Z", h)
 	}
 }

@@ -3,6 +3,7 @@ import {
   useCategories,
   useEventCategoryOverlays,
   useEvents,
+  useExpectedTimeForRange,
   useTimeEntries,
   useTzSegments,
   type Period,
@@ -22,6 +23,7 @@ export function usePeriodExport(period: Period | null | undefined) {
   const timeEntriesQuery = useTimeEntries(periodId);
   const tzSegmentsQuery = useTzSegments(periodId);
   const categoriesQuery = useCategories();
+  const expectedQuery = useExpectedTimeForRange(period?.startDate, period?.endDate);
 
   const categoriesById = useMemo(() => {
     return new Map(
@@ -63,14 +65,15 @@ export function usePeriodExport(period: Period | null | undefined) {
   ]);
 
   const summary = useMemo(() => {
-    if (!period) {
+    if (!period || !expectedQuery.isSuccess) {
       return null;
     }
 
     return buildPeriodExportSummary(items, period, {
       categories: categoriesQuery.data ?? [],
+      expectedDays: expectedQuery.data,
     });
-  }, [categoriesQuery.data, items, period]);
+  }, [categoriesQuery.data, expectedQuery.data, expectedQuery.isSuccess, items, period]);
 
   const totals = useMemo(() => {
     return items.reduce<Record<string, number>>((next, item) => {
@@ -85,13 +88,15 @@ export function usePeriodExport(period: Period | null | undefined) {
     eventCategoryOverlaysQuery.isLoading ||
     timeEntriesQuery.isLoading ||
     tzSegmentsQuery.isLoading ||
-    categoriesQuery.isLoading;
+    categoriesQuery.isLoading ||
+    expectedQuery.isLoading;
   const error =
     eventsQuery.error ??
     eventCategoryOverlaysQuery.error ??
     timeEntriesQuery.error ??
     tzSegmentsQuery.error ??
-    categoriesQuery.error;
+    categoriesQuery.error ??
+    expectedQuery.error;
 
   return {
     items,

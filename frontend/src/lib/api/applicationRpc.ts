@@ -444,7 +444,7 @@ function mapExportTemplate(item: WireExportTemplate): ExportTemplate { return { 
 export function mapPeriodExportModel(item: WirePeriodExportModel): PeriodExportModel {
   const category = (value: WirePeriodExportModel["periodTotals"][number]["category"]) => value ? ({ ...(value.id == null ? {} : { id: safeInt(value.id, "export category id") }), name: value.name, key: value.key, ...(value.color ? { color: value.color } : {}) }) : ({ name: "", key: "" });
   const totals = (values: WirePeriodExportModel["periodTotals"]) => values.map((value) => ({ category: category(value.category), minutes: value.minutes }));
-  return { periodId: safeInt(item.periodId, "period id"), periodLabel: item.periodLabel, startDate: item.startDate, endDate: item.endDate, targetHoursPerDay: item.targetHoursPerDay, targetMinutes: item.targetMinutes, actualMinutes: item.actualMinutes, days: item.days,
+  return { periodId: safeInt(item.periodId, "period id"), periodLabel: item.periodLabel, startDate: item.startDate, endDate: item.endDate, targetMinutes: item.targetMinutes, actualMinutes: item.actualMinutes, days: item.days,
     entries: item.entries.map((entry) => ({
       source: entry.source,
       sourceId: safeInt(entry.sourceId, "export source id"),
