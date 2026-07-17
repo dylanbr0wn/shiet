@@ -44,7 +44,7 @@ export function formatSummaryText(summary: PeriodExportSummary) {
     `Period: ${summary.periodLabel}`,
     `${summary.startDate} to ${summary.endDate}`,
     "",
-    `Target: ${formatDuration(summary.targetMinutes)} (${summary.targetHoursPerDay}h/day)`,
+    `Target: ${formatDuration(summary.targetMinutes)}`,
     `Actual: ${formatDuration(summary.actualMinutes)}`,
     `Variance: ${formatSignedMinutes(variance)}`,
     "",

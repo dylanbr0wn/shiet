@@ -250,7 +250,7 @@ export function isTextFormat(format: string): boolean {
 export const DEFAULT_TEXT_TEMPLATE_BODY = `Period: {{.PeriodLabel}}
 {{.StartDate}} to {{.EndDate}}
 
-Target: {{duration .TargetMinutes}} ({{hoursPerDay .TargetHoursPerDay}}h/day)
+Target: {{duration .TargetMinutes}}
 Actual: {{duration .ActualMinutes}}
 Variance: {{signedDuration .VarianceMinutes}}
 

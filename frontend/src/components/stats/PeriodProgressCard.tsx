@@ -32,7 +32,7 @@ export function PeriodProgressCard({
           <CardTitle className="text-sm">Period progress</CardTitle>
         </CardHeader>
         <CardContent>
-          <p className="text-sm text-muted-foreground">No active period.</p>
+          <p className="text-sm text-muted-foreground">No period progress yet.</p>
         </CardContent>
       </Card>
     );
@@ -72,8 +72,6 @@ export function PeriodProgressCard({
         </div>
         <p className={cn("text-xs font-medium", varianceToneClass(variance))}>
           {formatVariance(summary.actualMinutes, summary.targetMinutes)} vs target
-          {" · "}
-          {summary.targetHoursPerDay}h/day
         </p>
       </CardContent>
     </Card>

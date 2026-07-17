@@ -926,8 +926,8 @@ export function ExportSettings() {
                 : "New text template"}
             </DialogTitle>
             <DialogDescription>
-              Write a Go text/template body. Helpers: duration, signedDuration,
-              hoursPerDay. Preview uses the current period.
+              Write a Go text/template body. Helpers: duration, signedDuration.
+              Preview uses the current period.
             </DialogDescription>
           </DialogHeader>
 

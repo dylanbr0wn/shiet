@@ -80,11 +80,22 @@ export function localDateKey(date = new Date()) {
 }
 
 export function workingDaysRemaining(
-  period: Pick<Period, "startDate" | "endDate">,
+  period: Pick<Period, "startDate" | "endDate"> & {
+    dailyTotals?: Array<{ date: string; targetMinutes: number }>;
+  },
   today: string,
 ) {
   if (today > period.endDate) {
     return 0;
+  }
+
+  if (period.dailyTotals) {
+    return period.dailyTotals.reduce((count, day) => {
+      if (day.date < today || day.targetMinutes <= 0) {
+        return count;
+      }
+      return count + 1;
+    }, 0);
   }
 
   const dayCount = inclusiveDayCount(period.startDate, period.endDate);

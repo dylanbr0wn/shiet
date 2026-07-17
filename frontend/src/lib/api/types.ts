@@ -424,7 +424,6 @@ export interface PeriodExportModel {
   periodLabel: string;
   startDate: string;
   endDate: string;
-  targetHoursPerDay: number;
   targetMinutes: number;
   actualMinutes: number;
   days: string[];

@@ -1,13 +1,12 @@
-import type { Category, Period } from "@/lib/api";
+import type { Category, ExpectedTime, Period } from "@/lib/api";
 import { buildDays, formatPeriodLabel } from "@/lib/schedule";
 import { periodDayCount } from "@/lib/schedule/date";
 import type { ScheduleItem } from "@/lib/schedule/types";
 
-/** Flat daily target stub until ExpectedTime rewire (DYL-158). */
-const STUB_TARGET_HOURS_PER_DAY = 8;
-
 export interface BuildPeriodExportSummaryOptions {
   categories?: Category[];
+  /** Per-date expected minutes from ExpectedTimeForRange. Required for targets. */
+  expectedDays?: ExpectedTime[];
 }
 
 export interface DayCategoryHours {
@@ -21,7 +20,6 @@ export interface PeriodExportSummary {
   periodLabel: string;
   startDate: string;
   endDate: string;
-  targetHoursPerDay: number;
   targetMinutes: number;
   actualMinutes: number;
   periodTotals: Record<string, number>;
@@ -49,6 +47,14 @@ function buildCategoryColorMap(
   return colors;
 }
 
+function expectedMinutesByDate(expectedDays: ExpectedTime[] = []) {
+  const byDate = new Map<string, number>();
+  for (const day of expectedDays) {
+    byDate.set(day.date, day.expectedMinutes);
+  }
+  return byDate;
+}
+
 export function buildPeriodExportSummary(
   items: ScheduleItem[],
   period: Period,
@@ -69,24 +75,26 @@ export function buildPeriodExportSummary(
 
   const dayCount = periodDayCount(period);
   const days = buildDays(period.startDate, dayCount);
-  const targetMinutesPerDay = STUB_TARGET_HOURS_PER_DAY * 60;
-  const targetMinutes = targetMinutesPerDay * dayCount;
+  const expectedByDate = expectedMinutesByDate(options.expectedDays);
   const actualMinutes = Object.values(periodTotals).reduce(
     (sum, minutes) => sum + minutes,
     0,
   );
+  let targetMinutes = 0;
   const dailyTotals = days.map(({ date }) => {
     const categories = dailyMap.get(date) ?? {};
     const dayActualMinutes = Object.values(categories).reduce(
       (sum, minutes) => sum + minutes,
       0,
     );
+    const dayTarget = expectedByDate.get(date) ?? 0;
+    targetMinutes += dayTarget;
 
     return {
       date,
       categories,
       actualMinutes: dayActualMinutes,
-      targetMinutes: targetMinutesPerDay,
+      targetMinutes: dayTarget,
     };
   });
 
@@ -94,7 +102,6 @@ export function buildPeriodExportSummary(
     periodLabel: formatPeriodLabel(period),
     startDate: period.startDate,
     endDate: period.endDate,
-    targetHoursPerDay: STUB_TARGET_HOURS_PER_DAY,
     targetMinutes,
     actualMinutes,
     periodTotals,
