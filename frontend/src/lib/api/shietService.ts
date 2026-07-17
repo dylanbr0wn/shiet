@@ -6,6 +6,7 @@ import type {
   Calendar,
   Category,
   CreateCategoryInput,
+  CreateProjectInput,
   DayTimeline,
   Event,
   EventCategoryOverlay,
@@ -20,6 +21,7 @@ import type {
   IntegrationConnection,
   IntegrationProvider,
   ConnectIntegrationInput,
+  Project,
   TimeEntry,
   TimeEntryDeleteInput,
   TimeEntryInput,
@@ -33,6 +35,7 @@ import type {
   TimeWindow,
   TzSegment,
   UpdateCategoryInput,
+  UpdateProjectInput,
   ExportTemplate,
   CreateExportTemplateInput,
   UpdateExportTemplateInput,
@@ -55,10 +58,13 @@ import {
   createCategoryRPC,
   createExportTemplateRPC,
   createGapTimeEntryRPC,
+  createProjectRPC,
   createTimeEntryRPC,
   deleteCategoryRPC,
   archiveCategoryRPC,
+  archiveProjectRPC,
   deleteExportTemplateRPC,
+  deleteProjectRPC,
   deleteTimeEntryRPC,
   disconnectIntegrationRPC,
   duplicateExportTemplateRPC,
@@ -67,6 +73,7 @@ import {
   getEventRPC,
   getExportTemplateRPC,
   getIntegrationAuthStatusRPC,
+  getProjectRPC,
   getSettingRPC,
   listCalendarsRPC,
   listCategoriesRPC,
@@ -81,6 +88,7 @@ import {
   listBitbucketReposRPC,
   listIntegrationConnectionsRPC,
   listIntegrationProvidersRPC,
+  listProjectsRPC,
   listReviewDecisionsRPC,
   listSelectedCalendarsRPC,
   listSlackChannelsRPC,
@@ -102,6 +110,7 @@ import {
   syncPeriodRPC,
   updateCategoryRPC,
   updateExportTemplateRPC,
+  updateProjectRPC,
   updateTimeEntryRPC,
 } from "./applicationRpc";
 import {
@@ -253,6 +262,30 @@ export function archiveCategory(id: number) {
 
 export function listEventCategoryOverlays(periodId: number) {
   return readFromPortableBackend<EventCategoryOverlay[]>([], () => listEventCategoryOverlaysRPC(periodId));
+}
+
+export function listProjects(includeArchived = false) {
+  return readFromPortableBackend<Project[]>([], () => listProjectsRPC(includeArchived));
+}
+
+export function getProject(id: number) {
+  return readFromPortableBackend<Project | null>(null, () => getProjectRPC(id));
+}
+
+export function createProject(input: CreateProjectInput) {
+  return writeToPortableBackend(() => createProjectRPC(input));
+}
+
+export function updateProject(input: UpdateProjectInput) {
+  return writeToPortableBackend(() => updateProjectRPC(input));
+}
+
+export function deleteProject(id: number) {
+  return writeToPortableBackend(() => deleteProjectRPC(id));
+}
+
+export function archiveProject(id: number) {
+  return writeToPortableBackend(() => archiveProjectRPC(id));
 }
 
 export function listCalendars() {

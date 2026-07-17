@@ -45,6 +45,7 @@ const sectionPaths = {
   workSchedule: "/settings/work-schedule",
   integrations: "/settings/integrations",
   categories: "/settings/categories",
+  projects: "/settings/projects",
   ai: "/settings/ai",
   privacy: "/settings/privacy",
   export: "/settings/export",
