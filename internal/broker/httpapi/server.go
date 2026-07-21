@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/sha256"
+	"crypto/subtle"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -24,6 +25,7 @@ import (
 	"github.com/dylanbr0wn/shiet/internal/broker/ratelimit"
 	"github.com/dylanbr0wn/shiet/internal/broker/store"
 	"github.com/dylanbr0wn/shiet/internal/integration/oauth"
+	applog "github.com/dylanbr0wn/shiet/internal/log"
 	"github.com/dylanbr0wn/shiet/internal/oauthpages"
 	"github.com/rs/zerolog"
 )
@@ -122,12 +124,28 @@ func (s Server) handoffHandler(provider string) http.HandlerFunc {
 }
 
 func (s Server) metrics(w http.ResponseWriter, r *http.Request) {
+	if !metricsAuthorized(r, s.Config.MetricsToken) {
+		w.WriteHeader(http.StatusNotFound)
+		return
+	}
 	if s.Metrics == nil {
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 		w.WriteHeader(http.StatusOK)
 		return
 	}
 	s.Metrics.Handler().ServeHTTP(w, r)
+}
+
+func metricsAuthorized(r *http.Request, token string) bool {
+	if token == "" {
+		return false
+	}
+	const prefix = "Bearer "
+	auth := r.Header.Get("Authorization")
+	if !strings.HasPrefix(auth, prefix) {
+		return false
+	}
+	return subtle.ConstantTimeCompare([]byte(auth[len(prefix):]), []byte(token)) == 1
 }
 
 func (s Server) health(w http.ResponseWriter, _ *http.Request) {
@@ -388,7 +406,7 @@ func (s Server) oauthCallback(w http.ResponseWriter, r *http.Request, provider s
 	w.WriteHeader(http.StatusOK)
 	page, err := oauthpages.Success(providerName, handoffURL)
 	if err != nil {
-		s.logInfo(codes.EventCallback, "outcome", "render_page_failed", "error", err.Error())
+		s.logInfo(codes.EventCallback, "outcome", "render_page_failed", "reason", applog.ReasonUnknown)
 		page = fallbackSuccessPage(providerName, handoffURL)
 	}
 	_, _ = io.WriteString(w, page)
